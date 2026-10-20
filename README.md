@@ -45,7 +45,7 @@ The installer checks exact upstream script fingerprints and the stock `bb-probe.
 1. Download **`Bloodborne-UI-4K-v1.0.0.zip` from this project's Releases** and extract it. GitHub's automatic **Source code** ZIP does not include the binary texture payload.
 2. Close the game **and launcher**.
 3. Double-click **`Setup.cmd`**. Choose English or Russian.
-4. Browse to the **bbport folder containing `Bloodborne.exe`**, not the game's `CUSA03173` folder. Validation runs automatically: **green text** below the path means ready, and **red text** explains any problem. There are no pop-up prompts. Click **Install** once the folder passes validation.
+4. Browse to the **bbport folder containing `Bloodborne.exe`**, not the game's `CUSA03173` folder. Validation runs automatically. Click **Install** once the folder passes validation.
 5. Start bbport normally. Select **3840×2160** for the tested 4K text result, then restart the game.
 
 The installer enables and orders these mods automatically:
