@@ -1,0 +1,36 @@
+--- upstream/run.py
++++ integration/run.py
+@@ -301,6 +301,11 @@
+         shader_prebuild(game, out, env)
+         run_script('link_libc.py', game, '--out', out)
+         run_script('link_modules.py', game, '--out', out)
++        # Bloodborne UI 4K: coordinates for the selected 4x inventory atlases.
++        from inventory_icons import boot_for_mods
++        boot_image = boot_for_mods(out, game, Path(env.get('BB_MODS_DIR', data / 'mods')),
++                                  Path(env.get('BB_MODS_CONFIG', data / 'mods.json')),
++                                  env.get('BB_MODS_ENABLED', '1'))
+         # Legacy CPU profile (scripts/cpu_compat.py): the image no longer needs BMI1, LZCNT or
+         # MOVBE, and bb-probe's CPU check lets such a CPU start.
+         try:
+@@ -370,7 +375,11 @@
+                 env['BB_UI_RES'] = movie_output
+                 print('Aspect correction: centered 16:9 stage; aspect changes require restart')
+             else:
+-                env.pop('BB_UI_RES', None)
++                # Rasterize text for the physical 4K viewport; keep the logical stage.
++                if (ow, oh) == (3840, 2160):
++                    env['BB_UI_RES'] = movie_output
++                else:
++                    env.pop('BB_UI_RES', None)
+         else:
+             env.pop('BB_UI_RES', None)
+         if live == '1':
+@@ -418,7 +427,7 @@
+         this = ['--run'] if getattr(sys, 'frozen', False) else [str(Path(__file__).resolve())]
+         restart = [sys.executable, *this, '--after', str(os.getpid()), *args]
+         env['BB_RESTART_COMMAND'] = subprocess.list2cmdline(restart)
+-        command = [str(probe), str(out / 'boot-linked.bin'), '--content-profile', str(out / 'content.bin'),
++        command = [str(probe), str(boot_image), '--content-profile', str(out / 'content.bin'),
+                    '--patches', str(out / 'patches.bin'), '--app0', str(game),
+                    '--user', str(user_dir),
+                    '--timeout', env.get('BB_TIMEOUT', '0'), *args]

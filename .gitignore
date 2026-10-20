@@ -1,0 +1,7 @@
+# Full binary payload belongs in the GitHub Release ZIP, not the source repository.
+/payload/
+/dist/
+/build/
+__pycache__/
+*.pyc
+.bbport-ui4k/

@@ -1,0 +1,535 @@
+{
+  "id": "bloodborne-ui4k",
+  "version": "1.0.0",
+  "bbport": "Jgamrot Launcher 1.9.7 / qml-launcher-preview-21",
+  "game": "Bloodborne GOTY CUSA03173 / 1.09",
+  "inputs": [
+    {
+      "path": "run.py",
+      "text": true,
+      "sha256": "0895b3697909de7d35bbdfb647090c4bd2333002558244d4a7a66ea42cd14252"
+    },
+    {
+      "path": "scripts/patches.py",
+      "text": true,
+      "sha256": "98875d36386255ce904596313e8138fa9d30b63f4dd521054f7a8e89dbe9cf09"
+    },
+    {
+      "path": "bin/bb-probe.exe",
+      "text": false,
+      "sha256": "9870a55dc94f33b83056b8477953e92bfde2276b5b131c9e02788a411f5c88e5"
+    }
+  ],
+  "files": [
+    {
+      "source": "integration/run.py",
+      "target": "run.py",
+      "kind": "script",
+      "sha256": "bd3d431c514b3240f546e78027574f15d953859d98f492e2d237b22f882dfad0"
+    },
+    {
+      "source": "integration/patches.py",
+      "target": "scripts/patches.py",
+      "kind": "script",
+      "sha256": "ec1f5f920e2526f7cf25f1978aba16a794adc36e733a57ab73c1d8e52a5c7f95"
+    },
+    {
+      "source": "integration/inventory_icons.py",
+      "target": "scripts/inventory_icons.py",
+      "kind": "script",
+      "sha256": "fac2d5fe6b056227ef3ee352a2df6cfde5215d44a0c4f793a33d1971472c56c4"
+    },
+    {
+      "source": "payload/mods/Keyboard Prompts (PCBButtons)/dvdroot_ps4/menu/common.tpf.dcx",
+      "target": "mods/Keyboard Prompts (PCBButtons)/dvdroot_ps4/menu/common.tpf.dcx",
+      "kind": "asset",
+      "sha256": "9b355547e75248e51281d6f1e54fcc276e3b65bc9c505eaf34283f108447f966"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/autogenalter.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/autogenalter.gfx",
+      "kind": "asset",
+      "sha256": "8343992042e1b36e1e6e2fbdf33a61995e91d42beb1a8e81f6376586aa7e65f5"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/bloodmessage.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/bloodmessage.gfx",
+      "kind": "asset",
+      "sha256": "c19e92459230d06f2d59373c463b1451b41a7e0d77f9462f8e8265b3a42b0d41"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/bloodmessageedit.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/bloodmessageedit.gfx",
+      "kind": "asset",
+      "sha256": "52bed37dc5f4a527eea3d21d6004fe619f89dfa989b1aabcd73b4dfc278c96c3"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/bloodmessagelist.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/bloodmessagelist.gfx",
+      "kind": "asset",
+      "sha256": "f61a61d0429f50774a27bd87d8ef6e935404b3b29b25fef4d01c549f76b51299"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/bodygemequip.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/bodygemequip.gfx",
+      "kind": "asset",
+      "sha256": "e659852a3a575820d4a24ebcf1d6090368d4b17de3687f4173b5727baa959cb0"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/channelgenerate.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/channelgenerate.gfx",
+      "kind": "asset",
+      "sha256": "a648df02249f7b2f37d40e53cc064f72f1e1421e53d91434ba359d83ffc92ac1"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/channelinvest.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/channelinvest.gfx",
+      "kind": "asset",
+      "sha256": "cf0963122c56715f185cf89fc29685ec2c246a43d7921114c341724835a838c2"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/channelsearchcondition.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/channelsearchcondition.gfx",
+      "kind": "asset",
+      "sha256": "c1b4a0d2688258733a80ba299582c98f097899f36f533d7acd901a7ff8402b81"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/channelsearchresult.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/channelsearchresult.gfx",
+      "kind": "asset",
+      "sha256": "b6d56fe731dedbe068c0e7664fdef16b118f2adad9fb4c6f1999f3ef0b118fb1"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/channeltop.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/channeltop.gfx",
+      "kind": "asset",
+      "sha256": "4567c45d60d9a61f82cb6d7ee93f1a673dec4126c1d85d6b52b9dc8bb25a7b26"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/channelwarp.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/channelwarp.gfx",
+      "kind": "asset",
+      "sha256": "481e3296313602cb009ffec0c23c4f80c592bcd5baafe864d2bd8ed4b6647d55"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_basicparamselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_basicparamselect.gfx",
+      "kind": "asset",
+      "sha256": "78d3619605bf599f91ff3808baf43b4ffb870b1751eba7aeacbc5f597333d157"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_bg.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_bg.gfx",
+      "kind": "asset",
+      "sha256": "dda5a010b8e3cb3eb4bc6c186a2a0062cfff4f9df64df8d4a33d2813c5208d2a"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_bodyicongrid.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_bodyicongrid.gfx",
+      "kind": "asset",
+      "sha256": "acc6e15acff91921431b44f7eea99972e7aabcbe6614c03060c8c9c616aa39f2"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_childcommandlist.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_childcommandlist.gfx",
+      "kind": "asset",
+      "sha256": "196dc28013a7edb3b47c61e688c3b8bc51f7e79eb46f97fe92f7ace2afe38006"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_icongrid.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_icongrid.gfx",
+      "kind": "asset",
+      "sha256": "21268e3a00c3292976749243967e31f15c64a23878dbc6d47f2ff8dc6888f7a8"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_multislider.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_multislider.gfx",
+      "kind": "asset",
+      "sha256": "0e28fd2b354071e255af53a60c293ba208749a751854a07164136c42ddba3eb1"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_originselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_originselect.gfx",
+      "kind": "asset",
+      "sha256": "f67fb5776cccaa81ae47508a5fa1e23c902f73b4bc176fffcee76e9dd23107ce"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmake_skincolorselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmake_skincolorselect.gfx",
+      "kind": "asset",
+      "sha256": "c29c10a811618453d6754b324d312c4bc8ce68632b6120b5505aa61d1b41fa8b"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmakecommandlist.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmakecommandlist.gfx",
+      "kind": "asset",
+      "sha256": "45f5154996bfa2979835b3b9a77ad1a2075398961f41ebe02b9f8a4a65619c4e"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/chrmaketop.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/chrmaketop.gfx",
+      "kind": "asset",
+      "sha256": "0e217f9e5d4df5840aa58b7da8b51ced890d2fb65ef332de796413a8b997f4da"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/colorselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/colorselect.gfx",
+      "kind": "asset",
+      "sha256": "753fa254bc2c42b854b806319c1b7aae8cb0fad7f892c586d65032cee7162b5e"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/commandlist.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/commandlist.gfx",
+      "kind": "asset",
+      "sha256": "b73a80159f0bf1c016aaa79c90858a7f55d3b5f253721a50e2c053db35434f7d"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/common.tpf.dcx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/common.tpf.dcx",
+      "kind": "asset",
+      "sha256": "eb70934cca53108f0864369bf5d553f3c39a500d1c697e6cc2c199e357d51ddd"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/depository.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/depository.gfx",
+      "kind": "asset",
+      "sha256": "0b1941203553374e6c065779a34fb05e04df8e4b558849f780f333c57a393c1a"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/detailkeyguide.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/detailkeyguide.gfx",
+      "kind": "asset",
+      "sha256": "59589fc37ba197d8d755bcf7badb7a903aefeec320683ea597e0581e8febc26b"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/equipment.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/equipment.gfx",
+      "kind": "asset",
+      "sha256": "7ef71e450e4ec638ae7f276d56f8798834b290e892d7877c11ae7ebe8d58f6f8"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/fe.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/fe.gfx",
+      "kind": "asset",
+      "sha256": "55d6ad6bacbfc2b59390cc938179aa93c4fe11fa54411c862ba1e4f49b599ef5"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/gemequip.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/gemequip.gfx",
+      "kind": "asset",
+      "sha256": "0d00289d73a05bdbe20768fdfbd6241fd21d21916e6be40d57483625a95aadd3"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/gesturerepository.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/gesturerepository.gfx",
+      "kind": "asset",
+      "sha256": "c5125f309f67fb74cc32d013681b21c7cffe65b3993a6899f8fe03f8ec73d7e7"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/gesturetop.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/gesturetop.gfx",
+      "kind": "asset",
+      "sha256": "8df98485f6bfd952c2bd6b67e96454854bd2b56e3e4fdbc444352f215ace43d8"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/iconhelp.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/iconhelp.gfx",
+      "kind": "asset",
+      "sha256": "b245e1ef01efea2f2ed99e364e5f3dda40d497150484a612f6229cda8573316d"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/ingamemessagebox.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/ingamemessagebox.gfx",
+      "kind": "asset",
+      "sha256": "4d7f517f5facdfc1bf0669ca3c590f99a258a8e24bb5c016eac2da4cadfe037e"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/ingametop.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/ingametop.gfx",
+      "kind": "asset",
+      "sha256": "a46608a183014f980aedc09a49701c945ab0060261673965e72edb6f238c1d27"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/inventory.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/inventory.gfx",
+      "kind": "asset",
+      "sha256": "fe7d52180ea616260653a6d941ca02f43a9385bf57d9518ddcfd9f80fee7693f"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemdetailtext.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemdetailtext.gfx",
+      "kind": "asset",
+      "sha256": "1b26d4aed8aec7ed5a2ff7651562f084a9ff035c171b3746b0b69b7904b55160"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemlist_gem.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemlist_gem.gfx",
+      "kind": "asset",
+      "sha256": "508986515743b5ab779feae58d65ccf896fe0fb9cfd25b95261cd40259898f16"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemlist_normalitem.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemlist_normalitem.gfx",
+      "kind": "asset",
+      "sha256": "80b71a9a3b621105d83c222fdec273bdef122cd3b6326a1ced2dd9481c5bf83f"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemlist_protector.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemlist_protector.gfx",
+      "kind": "asset",
+      "sha256": "07624dc023cc51dbd04dd85b28c5ad2647d787bc7e4944071dd66273e615e4f6"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemlist_weapon.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemlist_weapon.gfx",
+      "kind": "asset",
+      "sha256": "40fd8b22f09b4948e9915dec1b907266116947047690143a1f13ec8e31148927"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemquantityselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemquantityselect.gfx",
+      "kind": "asset",
+      "sha256": "44c99fa13edf5801b90d141276087846d092e9eb3a202ca8c8b077c6f55fa774"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_gem.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_gem.gfx",
+      "kind": "asset",
+      "sha256": "4a4ea487290a37de2938e45334ab31d77c165b04acb7205d8526a228bbd4eb14"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_holygrail.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_holygrail.gfx",
+      "kind": "asset",
+      "sha256": "d8993973f91fe38499a1f511609fcf6d656c51fb6f8d3a639f2dd78c97e923b5"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_normalitem.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_normalitem.gfx",
+      "kind": "asset",
+      "sha256": "68732b7fcb426bd211240260980d4c2aa593e512d528307de06732aebdcf426c"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_protector.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_protector.gfx",
+      "kind": "asset",
+      "sha256": "08ed81e29736a586bf2f9d7cfce47e625976e88e36b3e960d9fc491b291ae844"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapon.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapon.gfx",
+      "kind": "asset",
+      "sha256": "7514b695797d6d5011cd651dc39971e6455ea08981fd0004a8f2caa46995183b"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapondetail.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapondetail.gfx",
+      "kind": "asset",
+      "sha256": "c0f14cbf1fb51ed12fd6b41329b69a895514ea5a0f923c97e587d4e3162e5bc9"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapondetail_equip.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapondetail_equip.gfx",
+      "kind": "asset",
+      "sha256": "9180ea805d097ad83c692c1b33c53202e28c8276e47bed3a8d5f66f1f245d2e8"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapondetail_gemequip.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/itemstatus_weapondetail_gemequip.gfx",
+      "kind": "asset",
+      "sha256": "47c6f290cd234c0a32e45bfbb26d17f09f16b2d37a1d9355caa1c783cb3b37cf"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/kickout.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/kickout.gfx",
+      "kind": "asset",
+      "sha256": "8e5fab2619ce1ef79f123bbf12c261f94928b1378480fb9168a5cd23e80212d9"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/kickouttop.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/kickouttop.gfx",
+      "kind": "asset",
+      "sha256": "d6d316d586b8a7ca7b9ffa126850cfc990f9f97733bfb82cf9c436f872a65a1d"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/largenumselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/largenumselect.gfx",
+      "kind": "asset",
+      "sha256": "89b4a868edf209a270a92f8b06f671539d2c485161119c7011770462a40c1b0a"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/leagueranking.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/leagueranking.gfx",
+      "kind": "asset",
+      "sha256": "b230397db5b88b23b2aaddcbd4bf2af63d8e4a9269be5bdf065ddf82be44b4d8"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/levelup.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/levelup.gfx",
+      "kind": "asset",
+      "sha256": "6d6d274fc3ec9fd4ce220829eaae1e80b1fbf4c01824e55fa87f925e51b841ec"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/messagebox.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/messagebox.gfx",
+      "kind": "asset",
+      "sha256": "963617de3a9411b7d0f2c80b490a91a1b1bd2ef14638c4d598ea2f3a8f6df8c8"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/messengertop.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/messengertop.gfx",
+      "kind": "asset",
+      "sha256": "c9d290cd1c7acaabf5ca57f43dd409433fa25a842af7a2823aa50d59855837b1"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/nowloading.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/nowloading.gfx",
+      "kind": "asset",
+      "sha256": "2cc91576ce342f2fb25833074bfcdad528d95eeee429cc10145687a9625a6114"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/nowloading2.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/nowloading2.gfx",
+      "kind": "asset",
+      "sha256": "c70f503643f31b8c26f8e9ac63a468032d42a9a43caa47d9ce1256a19d6c1009"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/numselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/numselect.gfx",
+      "kind": "asset",
+      "sha256": "6be0bce69f45a5f241f942aed7d290a709f779ac40c329228ed30be5b6439181"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/optionsetting.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/optionsetting.gfx",
+      "kind": "asset",
+      "sha256": "e7300f198b7c0f4fb0314a4eed3ae497eafd83edc958c7ebfe8134e4bff7a6eb"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/playerstatus.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/playerstatus.gfx",
+      "kind": "asset",
+      "sha256": "10c8b3a34a0e4710caa4209cbfb7696f9f1624dd26270723aeba424e4db78fc6"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/playerstatus_equipment.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/playerstatus_equipment.gfx",
+      "kind": "asset",
+      "sha256": "83c1ef7e8b55ef8033269953e00849b749e92078e403849c4b7ebba24fb27bfe"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/profileselect.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/profileselect.gfx",
+      "kind": "asset",
+      "sha256": "895a1a10e2b5fee7bf260b1d6c105a45f8c84d9f94b8c3d15ec8303a2186659b"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/quickmatchalter.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/quickmatchalter.gfx",
+      "kind": "asset",
+      "sha256": "a983076d71fa8efc5291174d8e2394b65f14929f8c45ee0f3f5f22119aa58061"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/ranking.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/ranking.gfx",
+      "kind": "asset",
+      "sha256": "9f62404d124b244cba0a9ecd825f3a4293cf8165ab258535ba1d66c0bdb5b446"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/rankingplayerstatus.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/rankingplayerstatus.gfx",
+      "kind": "asset",
+      "sha256": "78edcb1159a1e5d97a335a5eae99bcb4d54e8c4f37ed0836275176472b3bdb2c"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/rankingplayerstatus_equipment.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/rankingplayerstatus_equipment.gfx",
+      "kind": "asset",
+      "sha256": "02202e5b9628ee1b8dc2f04f55638306545df81e82581d5818257894ad2a1403"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/secondaryshortcut.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/secondaryshortcut.gfx",
+      "kind": "asset",
+      "sha256": "aaaf7af6575e2a8646adc24200ea2232113e2fac9d52ecbe6f53f27fa4a0729d"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/summonmessage.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/summonmessage.gfx",
+      "kind": "asset",
+      "sha256": "f0a51ed737ba5017cbcd680c0aee62bb3cd230cf3b723bc44bfcfd3291d32de1"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/systemdialog.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/systemdialog.gfx",
+      "kind": "asset",
+      "sha256": "45c8a5d7576049eca8b5be73e6b2bc7e5136beaec8a2eb2686ec2154078a6cdc"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/talkchoice1.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/talkchoice1.gfx",
+      "kind": "asset",
+      "sha256": "b7772785d670597b84160a1358b89a0edd6cf5906606c455048d729e72552375"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/talkchoice2.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/talkchoice2.gfx",
+      "kind": "asset",
+      "sha256": "2e7615c41b43ada3c9a62999421ddd46c38f6cd03d1d2bf64d09414cc90c0abf"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/talkchoice3.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/talkchoice3.gfx",
+      "kind": "asset",
+      "sha256": "b0873d0ce806c636aac364f8ef833b1914bc33111ff2435a4a196bc456a028a6"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/title.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/title.gfx",
+      "kind": "asset",
+      "sha256": "8ccd46b20bcf450e45debe392bbd2c35132d338250db94784ae1dc4b7f54676e"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/title_dlc.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/title_dlc.gfx",
+      "kind": "asset",
+      "sha256": "84bdcfbf82a1122b34ed7f9b0a5e808f921fb8ef16b1f6d8ec2603d0daa3bddc"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/title_dlc_eu.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/title_dlc_eu.gfx",
+      "kind": "asset",
+      "sha256": "aa8da30e4f9b92514b17ca95ffca0de315ddc77c0fdff70a978bf3ca1539d0df"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/titleinformation.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/titleinformation.gfx",
+      "kind": "asset",
+      "sha256": "86881c5529b51a7d592924f235295a925ef4408ee5eca7792787c0e1bc48016b"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/tos.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/tos.gfx",
+      "kind": "asset",
+      "sha256": "5b79445f6cd5ed666a6833a3d5203cf41facf3367fddc854032b97901e9ca301"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/warpmenu.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/warpmenu.gfx",
+      "kind": "asset",
+      "sha256": "03f333bdf8bbab303e0cd78b113adec807eba0d7d3bdfe24555ded8b5c972e32"
+    },
+    {
+      "source": "payload/mods/UI 4K/dvdroot_ps4/menu/weaponupgrade.gfx",
+      "target": "mods/UI 4K/dvdroot_ps4/menu/weaponupgrade.gfx",
+      "kind": "asset",
+      "sha256": "c4f1a5aba406ca71a57569d0c87c99397dc8cb9a5081e70f554736ebf7cbb0e5"
+    },
+    {
+      "source": "payload/mods/Inventory Icons 4K/dvdroot_ps4/menu/common.tpf.dcx",
+      "target": "mods/Inventory Icons 4K/dvdroot_ps4/menu/common.tpf.dcx",
+      "kind": "asset",
+      "sha256": "9ecbbe4fc022fa43f6f34deafb3e3f0ba2844482c3dca8f33e7aaa7865ae2b88"
+    }
+  ]
+}

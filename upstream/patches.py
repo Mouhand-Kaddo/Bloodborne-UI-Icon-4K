@@ -1,0 +1,566 @@
+"""Compile selected shadPS4/GoldHEN XML patches into out/patches.bin for the loader.
+
+Patch addresses are PS4 virtual addresses (eboot base 0x400000); the loader's
+image places eboot vaddr 0 at image offset 0. Only literal writes are supported
+(bytes, bytes16/32/64, float32/64, utf8, utf16); pattern ("mask") patches are rejected.
+"""
+import argparse
+import functools
+import hashlib
+import json
+import os
+import struct
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+EBOOT_BASE=0x400000
+# BB_FPS presets: patch names from patches/Bloodborne.xml (app version 01.09).
+FPS_PRESETS={'30':[],'60':['60 FPS++'],'90':['90 FPS++'],'uncap':['Uncap FPS++']}
+# Fixes applied with every preset. The game's two per-frame render heaps (256 KiB each,
+# mov edx,0x40000 at guest offsets 0x2195c09/0x2195c46) run out in a busy frame; the pool at
+# 0xe45560 then returns NULL and the caller copies into it (memcpy at guest offset 0x21d5b40).
+FIXES=['Larger Frame Heaps']
+# Upscaler presets (bbport.ini "preset", the in-game menu): output / render size ratio. The game
+# then renders at 1920x1080 / ratio and the port's temporal upscaler restores the output size.
+OUTPUT_SIZE=(1920,1080)
+PRESET_SCALES=[1.0,1.5,1.7,2.0,3.0]
+# The community patch changes two independent consumers: the game render/window setup
+# and the UI movie viewport. Keep the latter at native size so glyph rasterisation and
+# vector tessellation do not inherit the scene's FSR resolution.
+RESOLUTION_TEMPLATE='Resolution Patch 1280x720 (16:9)'
+# Outputs wider than 16:9: Kyo's 21:9 patch widens the camera's aspect ratio, the HUD canvas
+# (1080 high, wider), the HUD projection and the screen-to-HUD mapping of the lock-on and HP-bar
+# markers; ultrawide_writes recomputes those values for the output's own aspect ratio. From
+# emurphy04 (Supermedo/bloodborne_pc PR #70). Outputs narrower than 16:9 (16:10, portrait) keep
+# the camera hook of src/aspect_ratio.cpp and a centred 16:9 stage.
+ULTRAWIDE_TEMPLATE='Resolution Patch 2560x1080 (21:9)'
+ULTRAWIDE_CANVAS=2560 # the HUD canvas width written by ULTRAWIDE_TEMPLATE
+CAMERA_ASPECT=0x0183A35D-EBOOT_BASE
+HUD_PROJECTION_WIDTH=0x04D26EA4-EBOOT_BASE
+MARKER_BIAS=(0x04CF9A10-EBOOT_BASE,0x04CF9A70-EBOOT_BASE,0x04CF9AE0-EBOOT_BASE)
+# Effect switches (bbport.ini, in-game menu, launcher): key -> (patch when the key is 0, patch
+# when it is 1). The game reads these at start; a change applies after a restart.
+EFFECTS={
+    'effect_chromatic_aberration':('Disable Chromatic Aberration',None),
+    'effect_dof':('Disable DoF',None),
+    'effect_motion_blur':('Disable Motion Blur (perf increase)',None),
+    'effect_ssao':('Disable SSAO',None),
+    'effect_game_aa':('Disable AA',None),
+    'effect_dynamic_shadows':('Disable Dynamic Light Shadows (perf increase)',None),
+    'effect_ssr':(None,'Enable Screen Space Reflections (READ NOTE)'),
+    'skip_intro':(None,'Skip Intro'),
+    'debug_camera':(None,'Restore Debug Camera'),
+    'debug_menu':(None,'Restore Debug Menu (READ NOTES)'),
+    # Cheats and gameplay tweaks (launcher "Cheats" page).
+    'cheat_no_death':(None,'Player No Dead (Read note)'),
+    'cheat_stealth':(None,'Player Stealth (Read note)'),
+    'cheat_silent':(None,'Player Silent (Read note)'),
+    'cheat_rally_no_decay':(None,'No Rally Decay'),
+    'cheat_enemy_control':(None,'Enemy Control'),
+    'tweak_no_rally':(None,'Disable Rally (HP Regain)'),
+    'tweak_camera_distance':(None,'Increased camera distance'),
+    'tweak_no_camera_rotation':(None,'Disable Camera Auto Rotation via Movement'),
+    'tweak_easy_run':(None,'Sensitive Analog Input (easier to run)'),
+    'tweak_ragdoll':(None,'DS1-like physics'),
+}
+# model_lod: -2 highest, 0 the game's, 1 lower, 2 lowest.
+MODEL_LOD={'-2':'Model LOD -2 (Highest)','1':'Model LOD 1 (Lower)','2':'Model LOD 2 (Lowest)'}
+
+
+def game_app_version(game):
+    """APP_VER of the game folder's param.sfo ("01.09"), or None when it cannot be read.
+    Game of the Year discs (CUSA03173) ship the 1.09 code with APP_VER 01.00: a game whose
+    eboot.bin has the 1.09 patch fingerprint is 01.09 whatever its param.sfo says."""
+    try:
+        from prepare import sfo
+        version=sfo((Path(game) / 'sce_sys/param.sfo').read_bytes()).get('APP_VER')
+    except (OSError, ValueError, ImportError):
+        return None
+    if version!='01.09':
+        eboot=Path(game).resolve()/'eboot.bin'
+        try:
+            stat=eboot.stat()
+        except OSError:
+            return version
+        # Keyed on size and time too: the launcher stays open while eboot.bin is replaced.
+        if eboot_is_109(str(eboot),stat.st_size,stat.st_mtime_ns):
+            return '01.09'
+    return version
+
+
+@functools.lru_cache(maxsize=None)
+def eboot_is_109(path,_size=None,_mtime=None):
+    try:
+        from prepare import parse_self
+        elf=bytes(parse_self(Path(path).read_bytes())[0])
+        return patch_fingerprint(elf,BUILTIN_XML,'01.09')==PATCH_FINGERPRINTS['01.09']
+    except (OSError, ValueError, KeyError, IndexError, TypeError, struct.error, ET.ParseError, ImportError):
+        return False
+
+
+def validate_patch_requirements(names, game):
+    if 'Restore Debug Camera' in names and 'Enemy Control' in names:
+        raise ValueError('Restore Debug Camera conflicts with Enemy Control; enable only one')
+    if 'Restore Debug Menu (READ NOTES)' in names:
+        font = game / 'dvdroot_ps4/font'
+        missing = [name for name in ('DbgFont14h.ccm', 'DbgFont14h.tpf')
+                   if not (font / name).is_file() or (font / name).stat().st_size == 0]
+        if missing:
+            raise ValueError('Debug menu needs non-empty font files in '
+                             f'{font}: {", ".join(missing)}. Install the fonts from '
+                             'https://www.nexusmods.com/bloodborne/mods/253 first; '
+                             'or disable debug_menu in bbport.ini')
+
+
+def effect_patches(settings):
+    names=[]
+    for key,(off,on) in EFFECTS.items():
+        if key not in settings: continue
+        name=on if settings[key]=='1' else off
+        if name: names.append(name)
+    # Enemy Control and the free camera use the same buttons: the free camera wins.
+    if 'Enemy Control' in names and 'Restore Debug Camera' in names:
+        names.remove('Enemy Control')
+        print('Patches: Enemy Control skipped (it conflicts with the free camera)')
+    # Rally that never decays means nothing without Rally.
+    if 'No Rally Decay' in names and 'Disable Rally (HP Regain)' in names:
+        names.remove('No Rally Decay')
+    lod=MODEL_LOD.get(settings.get('model_lod','0'))
+    if lod: names.append(lod)
+    return names
+SCENE_WIDTH=0x02196A6B-EBOOT_BASE
+SCENE_HEIGHT=0x02196A7A-EBOOT_BASE
+UI_WIDTH=0x02358554-EBOOT_BASE
+UI_HEIGHT=0x0235855D-EBOOT_BASE
+
+
+def read_settings(path):
+    path = Path(path)
+    # Path.read_text() defaults to the process locale; bbport.ini may contain
+    # UTF-8 outside that encoding. Match the Windows launcher (encoding='utf-8').
+    settings={}
+    if path.exists():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            key,sep,value=line.partition('=')
+            if sep and not line.startswith('#'): settings[key.strip()]=value.strip()
+    return settings
+
+
+def render_size(settings,override=''):
+    """Render resolution for the upscaler preset, or None for native."""
+    if override:
+        w,h=(int(v) for v in override.lower().split('x'))
+        return (w,h)
+    if settings.get('upscaler','fsr3')=='off': return None
+    preset=int(settings.get('preset','0') or 0)
+    scale=PRESET_SCALES[max(0,min(preset,len(PRESET_SCALES)-1))]
+    if scale==1.0: return None
+    # Even sizes (the game has half-resolution buffers).
+    return tuple(max(2,round(v/scale/2)*2) for v in OUTPUT_SIZE)
+
+
+def output_size(settings):
+    """Output (UI) size from bbport.ini output_res, e.g. 3840x2160; 1920x1080 by default."""
+    try:
+        w,h=(int(v) for v in settings.get('output_res','').lower().split('x'))
+        if 256<=w<=7680 and 144<=h<=4320 and not (w%2 or h%2): return (w,h)
+    except ValueError:
+        pass
+    return OUTPUT_SIZE
+
+
+def scaled_sizes(settings):
+    """(render, output) for an output other than 1080p (above it, or 720p for the Steam Deck):
+    the game renders at output / preset scale (or at the output size without upscaler) and the
+    upscaler fills the output. None at 1080p and for TAA (native, live host targets only)."""
+    out=output_size(settings)
+    if out==OUTPUT_SIZE or (settings.get('upscaler')=='taa' and out[0]*9==out[1]*16): return None
+    scale=1.0
+    if settings.get('upscaler','fsr3') not in ('off','taa'):
+        preset=int(settings.get('preset','0') or 0)
+        scale=PRESET_SCALES[max(0,min(preset,len(PRESET_SCALES)-1))]
+    render=tuple(max(2,round(v/scale/2)*2) for v in out)
+    # A scene of exactly the UI coordinate space's size (1920x1080 at 4K Performance, the
+    # ultrawide HUD canvas at 2560x1080 or 3840x1080 native) is indistinguishable from it: the
+    # port's UI composition recognizes UI draws by that size (HUD gauges came out too long).
+    canvas=hud_canvas(out)
+    if render==canvas: render=(canvas[0]-4,canvas[1]-2)
+    return render,out
+
+
+def ultrawide(output):
+    """Wider than 16:9."""
+    return output[0]*OUTPUT_SIZE[1]>output[1]*OUTPUT_SIZE[0]
+
+
+def hud_canvas(output):
+    """The HUD's coordinate space for an output: 1920x1080 up to 16:9, wider (still 1080 high,
+    even width) for ultrawide outputs, e.g. 2580x1080 for 3440x1440. The port scales it to the
+    output uniformly (UiComposition, BB_UI_RES)."""
+    w,h=output
+    if not ultrawide(output): return OUTPUT_SIZE
+    return (round(OUTPUT_SIZE[1]*w/h/2)*2,OUTPUT_SIZE[1])
+
+
+def ultrawide_writes(xml,output,app_version,segments):
+    """ULTRAWIDE_TEMPLATE for `output`'s aspect ratio, without its scene and UI viewport sizes
+    (resolution_writes). After resolution_writes: its 1920-wide HUD writes are replaced."""
+    canvas=hud_canvas(output)[0]
+    viewport={SCENE_WIDTH,SCENE_HEIGHT,UI_WIDTH,UI_HEIGHT}
+    floats={CAMERA_ASPECT:(ULTRAWIDE_CANVAS/1080,output[0]/output[1]),
+            HUD_PROJECTION_WIDTH:(ULTRAWIDE_CANVAS,canvas)}
+    floats.update({site:(0.5*1920/ULTRAWIDE_CANVAS,0.5*1920/canvas) for site in MARKER_BIAS})
+    old_width=ULTRAWIDE_CANVAS.to_bytes(3,'little')
+    out=[]
+    found=set()
+    for offset,data in compile_patches(xml,[ULTRAWIDE_TEMPLATE],app_version,segments):
+        if offset in viewport: continue
+        if offset in floats:
+            old,value=floats[offset]
+            if len(data)!=4 or abs(struct.unpack('<f',data)[0]-old)>1e-3:
+                raise ValueError(f'unexpected ultrawide value at {offset+EBOOT_BASE:#x}')
+            data=struct.pack('<f',value)
+            found.add(offset)
+        elif len(data)==4 and data[0] in (0xB8,0xB9,0xBE) and data[1:]==old_width:
+            # mov e?x, 2560 (the imm32's last byte is the next write's): the HUD canvas width.
+            data=bytes([data[0]])+canvas.to_bytes(3,'little')
+        out.append((offset,data))
+    if found!=floats.keys():
+        raise ValueError('ultrawide patch is missing camera/HUD values')
+    return out
+
+
+def resolution_writes(xml,size,app_version,segments,ui=OUTPUT_SIZE):
+    writes=compile_patches(xml,[RESOLUTION_TEMPLATE],app_version,segments)
+    replacements={SCENE_WIDTH:(0xB8,0x500,size[0]),
+                  SCENE_HEIGHT:(0xB8,0x2D0,size[1]),
+                  UI_WIDTH:(0xB8,0x500,ui[0]),
+                  UI_HEIGHT:(0xB9,0x2D0,ui[1])}
+    out=[]
+    seen=set()
+    for offset,data in writes:
+        if offset in replacements:
+            opcode,old,value=replacements[offset]
+            if data!=bytes([opcode])+old.to_bytes(3,'little') or offset in seen:
+                raise ValueError(f'unexpected resolution patch at {offset+EBOOT_BASE:#x}')
+            data=bytes([opcode])+value.to_bytes(3,'little')
+            seen.add(offset)
+        out.append((offset,data))
+    if seen!=replacements.keys():
+        raise ValueError('resolution patch is missing scene/UI viewport instructions')
+    return out
+
+
+# Built-in frame-rate fix (Supermedo/bloodborne_pc#33 by Aljoscha-Ide; the same bytes as #31 by
+# DUDUYG), applied with every preset above 30 FPS. After each physics step the player controller
+# (0x1514500) checks for "blocked" movement: commanded speed > 5 m/s while the character moved
+# less than 1/30 m this frame (vmulss 30.0 at 0x1514c24). The threshold is per frame, so it means
+# 1 m/s only at 30 FPS; at 144 FPS it is 4.8 m/s, sprinting counts as blocked, the root motion
+# scale (ctrl+0x1e0) drops to its floor of 0.5 and the halved speed keeps it there. The fix
+# divides the moved distance by the frame time (dt, local -0x74(%rbp)) instead: "blocked" is
+# then below 1 m/s at any frame rate. Off with sprint_fix=0 in bbport.ini or BB_SPRINT_FIX=0.
+FRAME_RATE_FIXES=[
+    # (vaddr, original bytes, replacement)
+    (0x1514c24,bytes.fromhex('c5fa590500174103'),bytes.fromhex('c5fa5e458c0f1f00')),  # vdivss -0x74(%rbp),%xmm0; nop
+]
+
+
+def sprint_fix_enabled(settings):
+    return os.environ.get('BB_SPRINT_FIX',settings.get('sprint_fix','1'))!='0'
+
+
+def frame_rate_fixes(elf):
+    phoff,=struct.unpack_from('<Q',elf,0x20)
+    phentsize,phnum=struct.unpack_from('<HH',elf,0x36)
+    loads=[]
+    for i in range(phnum):
+        kind,_,offset,vaddr,_,filesz,_,_=struct.unpack_from('<IIQQQQQQ',elf,phoff+i*phentsize)
+        if kind==1: loads.append((vaddr,offset,filesz))
+    writes=[]
+    for vaddr,original,new in FRAME_RATE_FIXES:
+        at=next((offset+vaddr-start for start,offset,filesz in loads if start<=vaddr<start+filesz),None)
+        if at is None or elf[at:at+len(original)]!=original:
+            print(f'Patches: frame-rate fix at {vaddr:#x} skipped (unexpected code)')
+            continue
+        writes.append((vaddr,new))
+    return writes
+
+
+def eboot_segments(elf):
+    phoff,=struct.unpack_from('<Q',elf,0x20)
+    phentsize,phnum=struct.unpack_from('<HH',elf,0x36)
+    segments=[]
+    for i in range(phnum):
+        kind,_,_,vaddr,_,_,memsz,_=struct.unpack_from('<IIQQQQQQ',elf,phoff+i*phentsize)
+        if kind==1: segments.append((vaddr,vaddr+memsz))
+    return segments
+
+
+def eboot_bytes(elf,start,end):
+    """The eboot's memory image at [start, end): its PT_LOAD file bytes, zero past their file size."""
+    phoff,=struct.unpack_from('<Q',elf,0x20)
+    phentsize,phnum=struct.unpack_from('<HH',elf,0x36)
+    out=bytearray(end-start)
+    for i in range(phnum):
+        kind,_,offset,vaddr,_,filesz,_,_=struct.unpack_from('<IIQQQQQQ',elf,phoff+i*phentsize)
+        low,high=max(start,vaddr),min(end,vaddr+filesz)
+        if kind==1 and low<high: out[low-start:high-start]=elf[offset+low-vaddr:offset+high-vaddr]
+    return bytes(out)
+
+
+# The patches write bytes into the code of one build of the game. A game whose param.sfo says 01.09
+# but whose eboot.bin holds other code (a base-game eboot beside an update's param.sfo, a modified
+# eboot) got them written over other instructions and crashed at start (write fault at guest
+# offset 0x20348b8). The fingerprint covers the game's original bytes everywhere the FPS and
+# resolution patches write, so another region's build with the same code passes. Recompute it
+# with --print-fingerprint (after a run of CUSA03173 v01.09) when those patches change.
+# Ours is upstream's d9e505b value; upstream's later 34e41d1d... follows its XML's sites (the physics
+# step at 0x00F383CA); both were checked on the same clean eboot (sha256 d65f0b4f...).
+BUILTIN_XML=Path(__file__).resolve().parent.parent/'patches/Bloodborne.xml'
+FINGERPRINT_PATCHES=sorted({n for names in FPS_PRESETS.values() for n in names}|{RESOLUTION_TEMPLATE})
+PATCH_FINGERPRINTS={'01.09':'f1322113eac92470b28f1cb3ccd7479b27f3daf7a9a31a6107f1fa14c8d94f14'}
+
+
+def patch_sites(xml,app_version,names=FINGERPRINT_PATCHES):
+    """Sorted, merged [start, end) eboot ranges the named patches write."""
+    ranges=[]
+    for meta in ET.parse(xml).getroot().iter('Metadata'):
+        if meta.get('Name') not in names or meta.get('AppVer')!=app_version: continue
+        for line in meta.iter('Line'):
+            offset=int(line.get('Address'),0)-EBOOT_BASE
+            ranges.append((offset,offset+len(encode(line))))
+    merged=[]
+    for start,end in sorted(ranges):
+        if merged and start<=merged[-1][1]: merged[-1]=(merged[-1][0],max(merged[-1][1],end))
+        else: merged.append((start,end))
+    return merged
+
+
+def patch_fingerprint(elf,xml=BUILTIN_XML,app_version='01.09'):
+    digest=hashlib.sha256()
+    for start,end in patch_sites(xml,app_version):
+        digest.update(struct.pack('<QQ',start,end)+eboot_bytes(elf,start,end))
+    return digest.hexdigest()
+
+
+def eboot_matches_patches(elf_path,app_version='01.09'):
+    """False when eboot.elf (prepare.py) differs from the build the patches were made for."""
+    expected=PATCH_FINGERPRINTS.get(app_version)
+    return not expected or patch_fingerprint(Path(elf_path).read_bytes(),BUILTIN_XML,app_version)==expected
+
+
+def encode(line):
+    kind,value=line.get('Type'),line.get('Value')
+    if kind=='bytes': return bytes.fromhex(value.replace(' ',''))
+    if kind in ('bytes16','bytes32','bytes64'):
+        return int(value,0).to_bytes(int(kind[5:])//8,'little')
+    if kind=='float32': return struct.pack('<f',float(value))
+    if kind=='float64': return struct.pack('<d',float(value))
+    if kind=='utf8': return value.encode()+b'\0'
+    if kind=='utf16': return value.encode('utf-16-le')+b'\0\0'
+    raise ValueError(f'unsupported patch type {kind!r}')
+
+
+# Patches that replace code which the fingerprint above does not cover: the bytes they overwrite,
+# as the 1.09 build has them (eboot offset, hex). Another build there gets the patch left out.
+PATCH_GUARDS={
+    'Skip Online/Offline Choice':(0x1b39030,'554889e54157415641554154534881ec48130000'),
+}
+
+
+def guarded_patches(names,elf):
+    """`names` without the guarded patches whose site in eboot.elf is not the code they expect."""
+    kept=[]
+    for name in names:
+        guard=PATCH_GUARDS.get(name)
+        if guard:
+            offset,expected=guard
+            expected=bytes.fromhex(expected)
+            if eboot_bytes(elf,offset,offset+len(expected))!=expected:
+                print(f'Patches: {name} left out: this eboot.bin has other code at its address')
+                continue
+        kept.append(name)
+    return kept
+
+
+def compile_patches(xml, names, app_version, segments):
+    found={}
+    for meta in ET.parse(xml).getroot().iter('Metadata'):
+        if meta.get('Name') in names and meta.get('AppVer')==app_version and meta.get('AppElf','eboot.bin')=='eboot.bin':
+            found[meta.get('Name')]=meta
+    missing=[n for n in names if n not in found]
+    if missing: raise ValueError(f'patches not found for app version {app_version}: {missing}')
+    writes=[]
+    for name in names:
+        for line in found[name].iter('Line'):
+            offset=int(line.get('Address'),0)-EBOOT_BASE
+            # The 1.09 FPS XML mistypes the physics-step address by 0x200000.
+            # 0x011383ca lies inside an unrelated multi-byte NOP;
+            # the intended float immediate is at 0x00f383ca in this build (1/30 in the game).
+            # The values in patches/Bloodborne.xml for these presets are shadPS4's maintained
+            # ones (upstream be1cde3): 1/30 at 60 FPS, 1/90 at 90, 1/120 uncapped.
+            if (app_version == '01.09' and name in ('60 FPS++', '90 FPS++', 'Uncap FPS++')
+                    and offset == 0x011383ca-EBOOT_BASE):
+                offset = 0x00f383ca-EBOOT_BASE
+            data=encode(line)
+            if not any(start<=offset and offset+len(data)<=end for start,end in segments):
+                raise ValueError(f'{name}: address {line.get("Address")} is outside the eboot')
+            writes.append((offset,data))
+    return writes
+
+
+# Third-party patch files (shadPS4/GoldHEN XML) in the data directory's patches/ folder.
+# Every retail release with update 1.09 (the same executable): US, EU, UK, JP, Asia, then the
+# editions with The Old Hunters.
+BLOODBORNE_IDS={'CUSA00900','CUSA00207','CUSA00208','CUSA00299','CUSA01363',
+                'CUSA03179','CUSA03173','CUSA03014','CUSA03023'}
+
+
+def external_patches(directory, app_version='01.09', exclude=Path(__file__).resolve().parent.parent/'patches/Bloodborne.xml'):
+    """[(key, file, metadata)] of eboot patches for this version in directory/*.xml.
+    key is "<file name>/<patch name>" (the launcher's selection, patches.json)."""
+    found=[]
+    directory=Path(directory)
+    for path in sorted(directory.glob('*.xml')) if directory.is_dir() else []:
+        if path.resolve()==Path(exclude).resolve(): continue  # the built-in file (patches/ in a checkout)
+        # Left by bbbridge's app (Supermedo's builds): play logs every 5 s to The Hunter's Dream.
+        if path.name.lower()=='bbbridge-live-map.xml': continue
+        try:
+            root=ET.parse(path).getroot()
+        except ET.ParseError as error:
+            print(f'Patches: {path.name}: {error}',file=sys.stderr)
+            continue
+        ids={e.text.strip() for e in root.iter('ID') if e.text}
+        if ids and not ids&BLOODBORNE_IDS: continue
+        for meta in root.iter('Metadata'):
+            if meta.get('AppVer')==app_version and meta.get('AppElf','eboot.bin')=='eboot.bin':
+                found.append((f'{path.name}/{meta.get("Name")}',path,meta))
+    return found
+
+
+def external_selection(found, config):
+    """Selected external patches: patches.json {"enabled": [...], "disabled": [...]} overrides
+    each file's isEnabled."""
+    settings={}
+    if config and Path(config).is_file():
+        settings=json.loads(Path(config).read_text(encoding='utf-8'))
+    enabled,disabled=set(settings.get('enabled',[])),set(settings.get('disabled',[]))
+    return [(key,path,meta) for key,path,meta in found
+            if key in enabled or (key not in disabled and meta.get('isEnabled','false').lower()=='true')]
+
+
+def compile_external(selected, segments):
+    """Writes of the selected external patches; a patch with unsupported lines is skipped whole."""
+    writes=[]
+    for key,_,meta in selected:
+        try:
+            ours=[]
+            for line in meta.iter('Line'):
+                offset=int(line.get('Address') or '',0)-EBOOT_BASE
+                data=encode(line)
+                if not any(start<=offset and offset+len(data)<=end for start,end in segments):
+                    raise ValueError(f'address {line.get("Address")} is outside the eboot')
+                ours.append((offset,data))
+        except ValueError as error:
+            print(f'Patches: skipped {key}: {error}',file=sys.stderr)
+            continue
+        writes+=ours
+        print(f'Patches: external {key} ({len(ours)} writes)')
+    return writes
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--patches-dir',type=Path,help='third-party patch XML files (shadPS4 format)')
+    p.add_argument('--patches-config',type=Path,help='patches.json: enabled/disabled external patches')
+    p.add_argument('--xml',type=Path,default=Path(__file__).resolve().parent.parent/'patches/Bloodborne.xml')
+    p.add_argument('--fps',choices=sorted(FPS_PRESETS),default='uncap')
+    p.add_argument('--extra',default='',help='additional patch names, separated by ";"')
+    p.add_argument('--app-version',default='01.09')
+    p.add_argument('--out',type=Path,default=Path(__file__).resolve().parent.parent/'out')
+    p.add_argument('--settings',type=Path,default=Path(__file__).resolve().parent.parent/'bbport.ini')
+    p.add_argument('--game-dir',type=Path,default=Path(os.environ.get('BB_GAME_DIR','../CUSA03173')))
+    p.add_argument('--render-res',default='',help='render resolution WxH (overrides the preset)')
+    p.add_argument('--print-preset-size',action='store_true',help='print the selected preset size, if reduced')
+    p.add_argument('--output-res',default='',help='output resolution WxH (centered 1920x1080 logical HUD stage)')
+    p.add_argument('--print-scaled',action='store_true',
+                   help='print "RENDER OUTPUT" (WxH) when bbport.ini selects an output other than 1080p')
+    p.add_argument('--print-fingerprint',action='store_true',
+                   help='print the patch fingerprint of <out>/eboot.elf (PATCH_FINGERPRINTS)')
+    a=p.parse_args()
+    if a.print_fingerprint:
+        print(patch_fingerprint((a.out/'eboot.elf').read_bytes(),BUILTIN_XML,a.app_version))
+        return
+    if a.print_scaled:
+        sizes=scaled_sizes(read_settings(a.settings))
+        if sizes: print(f'{sizes[0][0]}x{sizes[0][1]} {sizes[1][0]}x{sizes[1][1]}')
+        return
+    if a.print_preset_size:
+        settings=read_settings(a.settings)
+        if 'BB_UPSCALER' in os.environ:
+            settings['upscaler']='fsr3' if os.environ['BB_UPSCALER']=='fsr3' else 'off'
+        if 'BB_UPSCALE_PRESET' in os.environ:
+            settings['preset']=os.environ['BB_UPSCALE_PRESET']
+        size=render_size(settings)
+        if size: print(f'{size[0]}x{size[1]}')
+        return
+    # The patches are byte writes at the addresses of one game version: on another version they
+    # would corrupt code. Such a game runs unpatched (run.sh/run.py then choose 30 FPS).
+    version=game_app_version(a.game_dir)
+    force=os.environ.get('BB_FORCE_PATCHES')
+    if version and version!=a.app_version and not force:
+        (a.out/'patches.bin').write_bytes(struct.pack('<8sQQ',b'BBPATCH2',EBOOT_BASE,0))
+        print(f'Patches: game version {version}, patches are for {a.app_version}: none applied '
+              '(30 FPS, no effect or resolution patches)')
+        return
+    if not force and not eboot_matches_patches(a.out/'eboot.elf',a.app_version):
+        (a.out/'patches.bin').write_bytes(struct.pack('<8sQQ',b'BBPATCH2',EBOOT_BASE,0))
+        print(f'Patches: eboot.bin is not the {a.app_version} build the patches were made for: none '
+              'applied (30 FPS, no effect or resolution patches; BB_FORCE_PATCHES=1 applies them)')
+        return
+    names=FPS_PRESETS[a.fps]+FIXES+[n.strip() for n in a.extra.split(';') if n.strip()]
+    names+=[n for n in effect_patches(read_settings(a.settings)) if n not in names]
+    validate_patch_requirements(names,a.game_dir)
+    elf=(a.out/'eboot.elf').read_bytes()
+    names=guarded_patches(names,elf)
+    segments=eboot_segments(elf)
+    writes=compile_patches(a.xml,names,a.app_version,segments)
+    if a.fps!='30' and sprint_fix_enabled(read_settings(a.settings)):
+        fixes=frame_rate_fixes(elf)
+        writes+=fixes
+        if fixes: names.append('Frame-rate fix: blocked-movement check')
+    size=render_size(read_settings(a.settings),a.render_res) if a.render_res else None
+    # Scaleform's logical stage remains 1920x1080. At non-16:9 output sizes,
+    # give its show-all mode the actual physical viewport so it centers the stage.
+    # The renderer uses that coordinate space for native-resolution UI draws.
+    # Ultrawide outputs widen those coordinates instead (hud_canvas; run.py passes the same
+    # size as BB_UI_RES) and get Kyo's 21:9 patch for their aspect ratio.
+    ui=OUTPUT_SIZE
+    out=output_size({'output_res': a.output_res}) if a.output_res else OUTPUT_SIZE
+    if ultrawide(out): ui=hud_canvas(out)
+    elif out[0]*9 != out[1]*16: ui=out
+    if size:
+        writes+=resolution_writes(a.xml,size,a.app_version,segments,ui)
+        if ultrawide(out):
+            writes+=ultrawide_writes(a.xml,out,a.app_version,segments)
+            names.append(f'ultrawide {out[0]}x{out[1]} (HUD {ui[0]}x{ui[1]})')
+        if size[0]*size[1]>OUTPUT_SIZE[0]*OUTPUT_SIZE[1]:
+            heap='Increased Graphics Heap Sizes'
+            writes+=compile_patches(a.xml,[heap],a.app_version,segments)
+            names.append(heap)
+        print(f'Patches: scene {size[0]}x{size[1]}; UI {ui[0]}x{ui[1]}')
+    if a.patches_dir:
+        # After the built-in ones: an external patch of the same bytes wins.
+        writes+=compile_external(external_selection(external_patches(a.patches_dir,a.app_version,a.xml),
+                                                    a.patches_config),segments)
+    # BBPATCH2: the patch base, so the loader can rebase pointers the patches write into
+    # relocated slots (60/90 FPS++ replace function pointers).
+    blob=struct.pack('<8sQQ',b'BBPATCH2',EBOOT_BASE,len(writes))
+    for offset,data in writes: blob+=struct.pack('<QQ',offset,len(data))+data
+    (a.out/'patches.bin').write_bytes(blob)
+    print(f'Patches: FPS preset {a.fps}; {len(writes)} writes from {names or "none"}')
+
+
+if __name__=='__main__':
+    main()

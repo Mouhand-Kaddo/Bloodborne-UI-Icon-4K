@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "runtime": "Windows PowerShell 5.1",
+  "game_started": false,
+  "checks": [
+    "clean install, verify, repeat install, exact uninstall restore; spaces and Cyrillic paths",
+    "unsupported installation rejected before mutation",
+    "corrupted payload rejected before mutation",
+    "uninstall protects user edits and preserves later unrelated mod choices",
+    "post-copy failure restores exact original files and configuration",
+    "manifest path traversal rejected",
+    "UTF-8 BOM, Windows CRLF, missing mods.json; exact byte restoration",
+    "automatic folder preflight: valid, missing, wrong, modified, corrupt payload and already-installed states; no validation residue or popup code"
+  ]
+}

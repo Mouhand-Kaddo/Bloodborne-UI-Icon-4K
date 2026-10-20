@@ -1,0 +1,99 @@
+{
+  "inventory-consumables.png": [
+    {
+      "texture": "MENU_Icon_00001: cell 24",
+      "source_crop": [
+        0,
+        160,
+        80,
+        240
+      ],
+      "factor": 4,
+      "baseline_filter": "bilinear",
+      "display_size": [
+        300,
+        300
+      ]
+    },
+    {
+      "texture": "MENU_Icon_00001: cell 21",
+      "source_crop": [
+        720,
+        80,
+        800,
+        160
+      ],
+      "factor": 4,
+      "baseline_filter": "bilinear",
+      "display_size": [
+        300,
+        300
+      ]
+    },
+    {
+      "texture": "MENU_Icon_00001: cell 11",
+      "source_crop": [
+        880,
+        0,
+        960,
+        80
+      ],
+      "factor": 4,
+      "baseline_filter": "bilinear",
+      "display_size": [
+        300,
+        300
+      ]
+    }
+  ],
+  "inventory-more.png": [
+    {
+      "texture": "MENU_Icon_02001",
+      "source_crop": [
+        0,
+        0,
+        80,
+        80
+      ],
+      "factor": 4,
+      "baseline_filter": "bilinear",
+      "display_size": [
+        300,
+        300
+      ]
+    },
+    {
+      "texture": "MENU_Icon_03001",
+      "source_crop": [
+        400,
+        0,
+        480,
+        80
+      ],
+      "factor": 4,
+      "baseline_filter": "bilinear",
+      "display_size": [
+        300,
+        300
+      ]
+    },
+    {
+      "texture": "MENU_Icon_04001",
+      "source_crop": [
+        80,
+        0,
+        160,
+        80
+      ],
+      "factor": 4,
+      "baseline_filter": "bilinear",
+      "display_size": [
+        300,
+        300
+      ]
+    }
+  ],
+  "ui-decorations.png": {
+    "source": "Previously generated source/final PS4 texture comparison; original image pixels preserved below the headings."
+  }
+}
