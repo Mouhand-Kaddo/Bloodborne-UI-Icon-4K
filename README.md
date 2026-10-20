@@ -2,7 +2,9 @@
 
 [Русская версия](README.ru.md) · [Compatibility and testing](docs/TESTING.md) · [Credits](THIRD_PARTY_NOTICES.md)
 
-Sharper interface artwork, inventory icons and 4K text rendering for **Jgamrot bbport Launcher 1.9.7**.
+**Bloodborne UI and Icons 4K** is a texture upscale mod for **bbport** that improves interface artwork, HUD textures, inventory icons and text clarity at **3840×2160**. It includes an English/Russian Windows installer for **Jgamrot bbport Launcher 1.9.7** and preserves the original interface layout and on-screen icon sizes.
+
+[**Download the installer**](https://github.com/aoho60372/Bloodborne-UI-Icon-4K/releases/latest) · [Installation](#install) · [FAQ](#faq)
 
 ## Before / after
 
@@ -10,15 +12,15 @@ These are **real texture comparisons, not gameplay screenshots**. The original a
 
 ### Inventory icons
 
-![Original inventory icon crops on the left; upscaled texture crops on the right](docs/images/inventory-consumables.png)
+![Bloodborne bbport inventory icons before and after the 4K texture upscale; original crops on the left](docs/images/inventory-consumables.png)
 
 ### Other inventory atlases
 
-![Three additional inventory atlas crops, before and after](docs/images/inventory-more.png)
+![Three more Bloodborne inventory icon texture crops before and after the bbport 4K upscale](docs/images/inventory-more.png)
 
 ### Interface decorations
 
-![Interface ornament and frame texture comparison](docs/images/ui-decorations.png)
+![Bloodborne UI 4K texture comparison for bbport: interface ornament and frame before and after](docs/images/ui-decorations.png)
 
 ## Features
 
@@ -28,6 +30,24 @@ These are **real texture comparisons, not gameplay screenshots**. The original a
 - **4K text rendering:** matches the movie viewport to 3840×2160. Fonts remain the game's original vector fonts; this is not a replacement font pack.
 - Keyboard and mouse prompts from **PCBButtons** are included and enabled.
 - Install and uninstall from one English/Russian window. The selected folder is checked automatically. No Python installation or administrator rights required in a writable bbport folder.
+
+## FAQ
+
+### How can I improve Bloodborne UI clarity at 4K?
+
+This package combines higher-resolution menu and HUD textures with a 3840×2160 movie viewport for text rendering. Install it from the [latest release](https://github.com/aoho60372/Bloodborne-UI-Icon-4K/releases/latest), select **3840×2160** in bbport and restart the game. The game’s original vector fonts are retained; this is not a replacement font pack.
+
+### Does this include 4K inventory icons for bbport?
+
+Yes. **Inventory Icons 4K** upscales all 20 `MENU_Icon` atlases by **4× per axis**, covering the inventory’s item, weapon and clothing icons. Standard 1024×1024 atlases become 4096×4096. The included runtime correction preserves the proper texture coordinates, so icons stay whole and match their items.
+
+### Does this change Bloodborne UI scale or make the HUD bigger?
+
+No. This mod improves texture resolution and 4K text rendering while preserving the original on-screen size and layout. It does not add a UI scale slider or enlarge the HUD and inventory slots.
+
+### Which bbport version is supported?
+
+Use **Jgamrot bbport Launcher 1.9.7**, tag **`qml-launcher-preview-21`**. The installer checks the port’s original scripts and runtime before installation. Download the supported port from its [release page](https://github.com/Jgamrot/bloodborne_pc/releases/tag/qml-launcher-preview-21).
 
 ## Requirements
 
