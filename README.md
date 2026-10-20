@@ -42,7 +42,7 @@ The installer checks exact upstream script fingerprints and the stock `bb-probe.
 
 ## Install
 
-1. Download **`Bloodborne-UI-4K-v1.0.0.zip` from this project's Releases** and extract it. GitHub's automatic **Source code** ZIP does not include the binary texture payload.
+1. Download [**Bloodborne-UI-4K-v1.0.0.zip from the latest release**](https://github.com/aoho60372/Bloodborne-UI-Icon-4K/releases/latest) and extract it. GitHub's automatic **Source code** ZIP does not include the binary texture payload.
 2. Close the game **and launcher**.
 3. Double-click **`Setup.cmd`**. Choose English or Russian.
 4. Browse to the **bbport folder containing `Bloodborne.exe`**, not the game's `CUSA03173` folder. Validation runs automatically. Click **Install** once the folder passes validation.
