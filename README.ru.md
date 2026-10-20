@@ -1,4 +1,4 @@
-# Bloodborne UI 4K
+# Bloodborne UI and Icons 4K upscale for bbport
 
 [English](README.md) · [Проверки и совместимость](docs/TESTING.md) · [Источники и авторы](THIRD_PARTY_NOTICES.md)
 
