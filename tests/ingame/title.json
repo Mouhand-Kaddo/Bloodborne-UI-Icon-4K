@@ -1,0 +1,7 @@
+[
+  {"do": "waitlog", "pattern": "PC menu: the title menu gains Quit Game", "seconds": 300},
+  {"do": "wait", "ms": 9000},
+  {"do": "key", "key": "enter"},
+  {"do": "wait", "ms": 4000},
+  {"do": "snap", "name": "02-title", "crops": [{"name": "menu", "x": 1020, "y": 860, "w": 520, "h": 300, "zoom": 2}]}
+]

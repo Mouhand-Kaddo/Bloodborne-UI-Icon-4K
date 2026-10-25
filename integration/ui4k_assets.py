@@ -9,7 +9,9 @@ Two kinds of files are made into the mod's own dvdroot_ps4 folder each time the 
   layout or language files, other mods below this one, or the game's own), with UI 4K's image
   and shape records put in: the doubled image sizes and the halved bitmap-fill scales. A record
   is replaced only where the base still has the game's original one, so the port's own edits
-  (PC menu rows, Quit Game, ultrawide layout) are kept.
+  (PC menu rows, Quit Game, ultrawide layout) are kept. Bitmap fills are then made smoothed:
+  the game's movies mark almost all of them non-smoothed (nearest-pixel sampling), exact at
+  1080p but stair-stepped at any other size.
 * The interface archive (menu/common.tpf.dcx): the 4K archive with the button prompts of the
   prompt set in use (the topmost other mod with its own common.tpf.dcx, such as the Xbox
   prompts, or the game's PlayStation prompts). The keyboard prompts (PCBButtons) keep the
@@ -22,7 +24,7 @@ MOD_NAME = 'UI 4K'
 DATA_FOLDER = 'ui4k'            # inside the mod folder; the loader ignores files outside dvdroot_ps4
 ARCHIVE = 'dvdroot_ps4/menu/common.tpf.dcx'
 STAMP = 'generated.json'
-IDENTITY = 'ui4k-assets 2'
+IDENTITY = 'ui4k-assets 3'
 
 
 # ---------------------------------------------------------------------------------------------
@@ -192,6 +194,160 @@ def scale_movie(base, reference, original):
     return gfx_write(head, out), replaced
 
 
+# Shape records: where each bitmap fill's type byte is, to turn non-smoothed fills (0x42/0x43,
+# nearest-pixel) into smoothed ones (0x40/0x41, bilinear) in place.
+
+class Bits:
+    def __init__(self, b, pos=0):
+        self.b, self.byte, self.bit = b, pos, 0
+
+    def align(self):
+        if self.bit:
+            self.byte += 1; self.bit = 0
+
+    def ub(self, n):
+        v = 0
+        for _ in range(n):
+            v = (v << 1) | ((self.b[self.byte] >> (7 - self.bit)) & 1)
+            self.bit += 1
+            if self.bit == 8:
+                self.bit = 0; self.byte += 1
+        return v
+
+    def u8(self):
+        self.align(); v = self.b[self.byte]; self.byte += 1; return v
+
+    def u16(self):
+        self.align(); v = self.b[self.byte] | self.b[self.byte + 1] << 8; self.byte += 2; return v
+
+
+def rect(r):
+    r.align(); n = r.ub(5); r.ub(4 * n); r.align()
+
+
+def matrix(r):
+    r.align()
+    if r.ub(1):
+        n = r.ub(5); r.ub(2 * n)
+    if r.ub(1):
+        n = r.ub(5); r.ub(2 * n)
+    n = r.ub(5); r.ub(2 * n); r.align()
+
+
+def gradient(r, version, focal):
+    flags = r.u8(); count = flags & 15
+    r.byte += count * (1 + (4 if version >= 3 else 3))
+    if focal:
+        r.byte += 2
+
+
+def fill_styles(r, version, found):
+    count = r.u8()
+    if count == 0xFF and version >= 2:
+        count = r.u16()
+    for _ in range(count):
+        at = r.byte; kind = r.u8()
+        if kind == 0x00:
+            r.byte += 4 if version >= 3 else 3
+        elif kind in (0x10, 0x12, 0x13):
+            matrix(r); gradient(r, version, kind == 0x13)
+        elif kind in (0x40, 0x41, 0x42, 0x43):
+            found.append((at, kind)); r.byte += 2; matrix(r)
+        else:
+            raise ValueError(f'fill style {kind:#x}')
+
+
+def line_styles(r, version, found):
+    count = r.u8()
+    if count == 0xFF:
+        count = r.u16()
+    for _ in range(count):
+        if version == 4:
+            r.byte += 2  # width
+            r.align(); r.ub(2); join = r.ub(2); has_fill = r.ub(1); r.ub(11)  # 16 flag bits
+            if join == 2:
+                r.byte += 2
+            if has_fill:
+                fill_styles_one(r, version, found)
+            else:
+                r.byte += 4
+        else:
+            r.byte += 2 + (4 if version >= 3 else 3)
+
+
+def fill_styles_one(r, version, found):
+    at = r.byte; kind = r.u8()
+    if kind == 0x00:
+        r.byte += 4
+    elif kind in (0x10, 0x12, 0x13):
+        matrix(r); gradient(r, version, kind == 0x13)
+    elif kind in (0x40, 0x41, 0x42, 0x43):
+        found.append((at, kind)); r.byte += 2; matrix(r)
+    else:
+        raise ValueError(f'fill style {kind:#x}')
+
+
+VERSIONS = {2: 1, 22: 2, 32: 3, 83: 4}
+
+
+def bitmap_fills(code, body):
+    """[(offset in body, fill type)] of every bitmap fill style in a shape tag."""
+    version = VERSIONS[code]
+    r = Bits(body, 2)
+    rect(r)
+    if version == 4:
+        rect(r); r.byte += 1
+    found = []
+    fill_styles(r, version, found); line_styles(r, version, found)
+    r.align(); fbits = r.ub(4); lbits = r.ub(4)
+    while True:
+        if r.ub(1):  # edge
+            straight = r.ub(1); n = r.ub(4) + 2
+            if straight:
+                if r.ub(1):
+                    r.ub(2 * n)
+                else:
+                    r.ub(1); r.ub(n)
+            else:
+                r.ub(4 * n)
+            continue
+        flags = r.ub(5)
+        if flags == 0:
+            break
+        new_styles, line, fill1, fill0, move = (flags >> 4) & 1, (flags >> 3) & 1, (flags >> 2) & 1, (flags >> 1) & 1, flags & 1
+        if move:
+            n = r.ub(5); r.ub(2 * n)
+        if fill0:
+            r.ub(fbits)
+        if fill1:
+            r.ub(fbits)
+        if line:
+            r.ub(lbits)
+        if new_styles and version >= 2:
+            fill_styles(r, version, found); line_styles(r, version, found)
+            r.align(); fbits = r.ub(4); lbits = r.ub(4)
+    r.align()
+    if r.byte != len(body):
+        raise ValueError(f'shape parse ended at {r.byte} of {len(body)}')
+    return found
+
+
+def smooth_movie(movie):
+    """`movie` with every non-smoothed bitmap fill made smoothed. Returns (movie, fills changed)."""
+    head, tags = gfx_tags(movie)
+    out, changed = [], 0
+    for code, body, long in tags:
+        if code in VERSIONS:
+            fills = [at for at, kind in bitmap_fills(code, body) if kind in (0x42, 0x43)]
+            if fills:
+                body = bytearray(body)
+                for at in fills:
+                    body[at] &= ~0x02
+                body = bytes(body); changed += len(fills)
+        out.append((code, body, long))
+    return gfx_write(head, out), changed
+
+
 # ---------------------------------------------------------------------------------------------
 # What the game would use without this mod
 
@@ -293,7 +449,7 @@ def prepare(game, generated, mods_dir, config, enabled, log=print):
 
         def build(base=base, reference=reference, original=original):
             data, _replaced = scale_movie(base.read_bytes(), reference.read_bytes(), original.read_bytes())
-            return data
+            return smooth_movie(data)[0]
         write(relative, inputs, build)
         count += 1
 

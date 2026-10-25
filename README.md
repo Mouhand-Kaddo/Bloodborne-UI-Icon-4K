@@ -28,6 +28,7 @@ These are **texture comparisons, not gameplay screenshots**: the same region at 
 
 - **Interface 2×:** 40 interface textures enlarged 2× per axis, with 79 Scaleform menu movies adjusted so the layout is unchanged.
 - **Inventory icons 4×:** all 20 `MENU_Icon` atlases enlarged 4× per axis, with a guarded native texture UV correction that keeps icons in their original places and sizes.
+- **Smooth image filtering:** the game's menu movies draw almost every image (6,328 of 6,370 fills) with nearest-pixel sampling, exact at 1080p but stair-stepped at 1440p and 4K. The movies are switched to bilinear filtering, so the upscaled art shows its detail at any size (the HUD's Blood Echoes and Insight symbols, menu frames, inventory icons).
 - **Sharper text above 1080p:** at any 16:9 output above 1080p (2560×1440, 3840×2160) the game's vector fonts are drawn for the output's own size. Not a font replacement.
 - **Your button prompts:** at each start the interface archive takes the prompt images of the prompt mod in use (Xbox, keyboard/PCBButtons, or the game's PlayStation ones). The keyboard prompts keep their 2× upscale.
 - **Works with the port's own menu edits:** the menu movies are rebuilt at start from the port's versions (in-game PC menu, *Quit Game*, ultrawide HUD layout, language files), with only the upscale's image and shape records put in.
@@ -75,6 +76,10 @@ The installer checks the port's original scripts and the stock `bb-probe.exe` (S
 | Menu movies | Fixed copies, which replace the port's PC menu movies | Rebuilt at start from the port's own versions |
 | Mod folders | `Keyboard Prompts (PCBButtons)`, `UI 4K`, `Inventory Icons 4K` | `UI 4K` only (keyboard prompts come from the launcher's own download) |
 | Another mod replacing the interface archive | The game does not start | A warning; that mod's archive is used without the icon correction |
+
+## Known limitation
+
+The pictures in the HUD's **Blood Vial and Quicksilver Bullet slots** (top left) are not part of the menu textures: with every menu texture, item picture and icon sheet replaced by solid colours in a test, they still showed. They stay at the game's resolution, now drawn with smooth filtering instead of nearest-pixel. Where the game loads them from is not known yet.
 
 ## FAQ
 

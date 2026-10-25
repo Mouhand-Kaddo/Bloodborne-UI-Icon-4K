@@ -1,0 +1,22 @@
+[
+  {"do": "waitlog", "pattern": "Display: host buffer", "seconds": 300},
+  {"do": "expectlog", "label": "UI 4K launch files made", "pattern": "UI 4K: 79 menu movies", "modOnly": true},
+  {"do": "expectlog", "label": "Icon correction enabled", "pattern": "UI 4K: 20 inventory atlases at 4x; native UV correction enabled", "modOnly": true},
+  {"do": "expectlog", "label": "Movie viewport at the output size", "pattern": "Patches: scene \\d+x\\d+; UI (2560x1440|3840x2160)", "modOnly": true},
+  {"do": "waitlog", "pattern": "PC menu: the title menu gains Quit Game", "seconds": 240},
+  {"do": "wait", "ms": 9000},
+  {"do": "snap", "name": "01-press-start"},
+  {"do": "key", "key": "enter"},
+  {"do": "wait", "ms": 4000},
+  {"do": "snap", "name": "02-title", "crops": [{"name": "menu", "x": 1020, "y": 860, "w": 520, "h": 300, "zoom": 2}]},
+  {"do": "key", "key": "enter"},
+  {"do": "waitlog", "pattern": "save data 'SPRJ\\d+' mounted", "seconds": 120},
+  {"do": "wait", "ms": 25000},
+  {"do": "snap", "name": "03-hud", "crops": [
+    {"name": "vials", "x": 130, "y": 120, "w": 110, "h": 150, "zoom": 4},
+    {"name": "quick-item", "x": 270, "y": 130, "w": 200, "h": 140, "zoom": 3},
+    {"name": "echoes-insight", "x": 2090, "y": 90, "w": 300, "h": 120, "zoom": 3}]},
+  {"do": "key", "key": "escape", "hold": 150},
+  {"do": "wait", "ms": 2500},
+  {"do": "snap", "name": "04-menu"}
+]

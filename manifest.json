@@ -44,7 +44,7 @@
       "source": "integration/ui4k_assets.py",
       "target": "scripts/ui4k_assets.py",
       "kind": "script",
-      "sha256": "f309e05a0e63fcb958af5ed8afb8c3d37e3078dd690b422216738a88f09ab713"
+      "sha256": "30c9c2f574bfee3ffa08a062ea8a140eea872b090b92f2f021ca50e03f6cec46"
     },
     {
       "source": "integration/inventory_icons.py",
