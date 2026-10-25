@@ -1,31 +1,64 @@
 --- upstream/run.py
 +++ integration/run.py
-@@ -301,6 +301,11 @@
+@@ -378,6 +378,20 @@
+                    '--voice', voice, optional=True)
+         if (language_layer / 'dvdroot_ps4').is_dir():
+             generated.append(str(language_layer))
++    # Bloodborne UI 4K (scripts/ui4k_assets.py): its menu movies and interface archive, made for
++    # this port's own menu files and the button prompts in use, before the mods are put together.
++    sys.path.insert(0, str(PORT / 'scripts'))
++    import ui4k_assets
++    ui4k_mods = (Path(env.get('BB_MODS_DIR', data / 'mods')), Path(env.get('BB_MODS_CONFIG', data / 'mods.json')),
++                 env.get('BB_MODS_ENABLED', '1'))
++    ui4k_on = ui4k_assets.in_use(*ui4k_mods)
++    ui4k_archive = None
++    if ui4k_on:
++        try:
++            ui4k_archive = ui4k_assets.prepare(game, generated, *ui4k_mods)
++        except Exception as error:  # noqa: BLE001 - the game starts with the files made last time
++            print(f'UI 4K: launch files not made ({error}); using the previous ones', file=sys.stderr)
++            ui4k_archive = ui4k_assets.previous_archive(ui4k_mods[0])
+     game = Path(run_script('mods.py', game, '--out', out,
+                            '--mods-dir', env.get('BB_MODS_DIR', data / 'mods'),
+                            '--config', env.get('BB_MODS_CONFIG', data / 'mods.json'),
+@@ -407,6 +421,15 @@
          shader_prebuild(game, out, env)
          run_script('link_libc.py', game, '--out', out)
          run_script('link_modules.py', game, '--out', out)
-+        # Bloodborne UI 4K: coordinates for the selected 4x inventory atlases.
-+        from inventory_icons import boot_for_mods
-+        boot_image = boot_for_mods(out, game, Path(env.get('BB_MODS_DIR', data / 'mods')),
-+                                  Path(env.get('BB_MODS_CONFIG', data / 'mods.json')),
-+                                  env.get('BB_MODS_ENABLED', '1'))
++        # Bloodborne UI 4K (scripts/inventory_icons.py): icon coordinates for the 4x inventory atlases.
++        boot_image = out / 'boot-linked.bin'
++        if ui4k_on:
++            from inventory_icons import boot_for_archive
++            try:
++                boot_image = boot_for_archive(out, game, ui4k_archive)
++            except Exception as error:  # noqa: BLE001
++                fail(f'UI 4K: the inventory icon correction could not be made for this port ({error}). '
++                     'Turn UI 4K off on the launcher\'s Mods page to play without it.')
          # Legacy CPU profile (scripts/cpu_compat.py): the image no longer needs BMI1, LZCNT or
          # MOVBE, and bb-probe's CPU check lets such a CPU start.
          try:
-@@ -370,7 +375,11 @@
+@@ -460,6 +483,7 @@
+             live = '1' if live == '1' or not patched else '0'
+         from patches import hud_canvas, ultrawide
+         env.pop('BB_ASPECT_PATCHED', None)
++        env.pop('BB_UI4K_TEXT', None)
+         if scaled_output or env.get('BB_OUTPUT_RES'):
+             movie_output = scaled_output or env['BB_OUTPUT_RES']
+             ow, oh = map(int, movie_output.split('x'))
+@@ -475,6 +499,12 @@
+                 live = '0'
                  env['BB_UI_RES'] = movie_output
                  print('Aspect correction: centered 16:9 stage; aspect changes require restart')
++            elif ui4k_on and oh > 1080:
++                # Bloodborne UI 4K: text drawn for the physical viewport (patches.py, BB_UI4K_TEXT).
++                live = '0'
++                env['BB_UI_RES'] = movie_output
++                env['BB_UI4K_TEXT'] = '1'
++                print(f'UI 4K: text drawn at {movie_output}; resolution changes require restart')
              else:
--                env.pop('BB_UI_RES', None)
-+                # Rasterize text for the physical 4K viewport; keep the logical stage.
-+                if (ow, oh) == (3840, 2160):
-+                    env['BB_UI_RES'] = movie_output
-+                else:
-+                    env.pop('BB_UI_RES', None)
+                 env.pop('BB_UI_RES', None)
          else:
-             env.pop('BB_UI_RES', None)
-         if live == '1':
-@@ -418,7 +427,7 @@
+@@ -559,7 +589,7 @@
          this = ['--run'] if getattr(sys, 'frozen', False) else [str(Path(__file__).resolve())]
          restart = [sys.executable, *this, '--after', str(os.getpid()), *args]
          env['BB_RESTART_COMMAND'] = subprocess.list2cmdline(restart)

@@ -4,7 +4,9 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $script:PackageRoot = Split-Path $PSScriptRoot -Parent
 $script:Utf8 = New-Object System.Text.UTF8Encoding($false)
-$script:OwnedMods = @('Keyboard Prompts (PCBButtons)','UI 4K','Inventory Icons 4K')
+$script:OwnedMods = @('UI 4K')
+# A folder the 1.0.0 package (bbport 1.9.7) installed; this one installs no such folder.
+$script:LegacyMods = @('Inventory Icons 4K')
 
 function Read-JsonFile([string]$Path) {
     return ([IO.File]::ReadAllText($Path,$script:Utf8) | ConvertFrom-Json)
@@ -53,17 +55,50 @@ function Read-ModConfig([string]$Path) {
     }
     return $value
 }
-function Get-InstallConfig($Before) {
+function Get-InstallConfig($Before,[string]$ModsDir) {
+    # UI 4K goes last, so its interface archive and menu movies are the ones the game loads; the
+    # button prompts of the mods before it (Xbox, keyboard) are carried into its archive at launch.
+    # The port lists folders missing from "order" alphabetically after it, so every current
+    # folder is named here, in that order, first.
     $value=$Before | ConvertTo-Json -Depth 20 | ConvertFrom-Json
     foreach ($key in @('enabled','disabled','order')) {
         $value.$key=@($value.$key | Where-Object {$_ -notin $script:OwnedMods})
     }
-    $value.enabled=@($value.enabled)+$script:OwnedMods
-    $value.order=@($value.order)+$script:OwnedMods
-    if ('Xbox 360 Prompts (Elden Ring)' -notin @($value.disabled)) {
-        $value.disabled=@($value.disabled)+@('Xbox 360 Prompts (Elden Ring)')
+    $folders=@()
+    if (Test-Path -LiteralPath $ModsDir) {
+        $folders=@(Get-ChildItem -LiteralPath $ModsDir -Directory -Force | Where-Object {-not $_.Name.StartsWith('.')} |
+                   ForEach-Object Name | Sort-Object {$_.ToLowerInvariant()},{$_})
     }
+    $order=@($value.order)
+    foreach ($name in $folders) {if ($name -notin $order -and $name -notin $script:OwnedMods) {$order+=@($name)}}
+    $value.enabled=@($value.enabled)+$script:OwnedMods
+    $value.order=$order+$script:OwnedMods
     return $value
+}
+function Remove-GeneratedFiles([string]$Target,$Manifest) {
+    # Files scripts/ui4k_assets.py made at launch (listed in its stamp), only inside the mod's own
+    # dvdroot_ps4 folder, and the stamp itself.
+    if (-not $Manifest.PSObject.Properties['generated']) {return}
+    $root=Get-SafePath $Target $Manifest.generated.root
+    $modRoot=[IO.Path]::GetDirectoryName($root)
+    $stamp=Get-SafePath $Target $Manifest.generated.stamp
+    if (Test-Path -LiteralPath $stamp) {
+        $made=Read-JsonFile $stamp
+        if ($made.PSObject.Properties['files']) {
+            foreach ($property in $made.files.PSObject.Properties) {
+                $path=[IO.Path]::GetFullPath((Join-Path $modRoot $property.Name))
+                if (-not $path.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) {throw "Unsafe generated path: $($property.Name)"}
+                if (Test-Path -LiteralPath $path -PathType Leaf) {[IO.File]::Delete($path)}
+            }
+        }
+        [IO.File]::Delete($stamp)
+    }
+    if (Test-Path -LiteralPath $root) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $root -Recurse -Force -File -Filter '*.ui4k-tmp')) {[IO.File]::Delete($item.FullName)}
+        foreach ($item in @(Get-ChildItem -LiteralPath $root -Recurse -Force -Directory | Sort-Object {$_.FullName.Length} -Descending)) {
+            if (@(Get-ChildItem -LiteralPath $item.FullName -Force).Count -eq 0) {[IO.Directory]::Delete($item.FullName)}
+        }
+    }
 }
 function Clear-State([string]$StateRoot) {
     # Delete only ordinary files and empty directories in our private state directory.
@@ -129,11 +164,16 @@ function Get-PackagePreflight([string]$Target) {
         $path=Get-SafePath $Target $inputFile.path
         if (-not (Test-Path -LiteralPath $path)) {throw "Missing bbport file: $($inputFile.path)"}
         $hash=if ($inputFile.text) {Get-TextDigest $path} else {Get-Digest $path}
-        if ($hash -ne $inputFile.sha256) {throw "Unsupported or modified bbport file: $($inputFile.path). Use clean Launcher 1.9.7 / qml-launcher-preview-21."}
+        if ($hash -ne $inputFile.sha256) {throw "Unsupported or modified bbport file: $($inputFile.path). Use clean $($manifest.bbport)."}
+    }
+    foreach ($legacy in $script:LegacyMods) {
+        if (Test-Path -LiteralPath (Get-SafePath $Target ('mods/'+$legacy))) {
+            throw "A different mod already uses this path: mods/$legacy. Move that mod out first."
+        }
     }
     $configPath=Get-SafePath $Target 'mods.json'
     $before=Read-ModConfig $configPath
-    $after=Get-InstallConfig $before
+    $after=Get-InstallConfig $before (Get-SafePath $Target 'mods')
     $plan=@();$directories=@()
     # Preflight every payload file before changing the target.
     foreach ($entry in @($manifest.files)) {
@@ -149,8 +189,8 @@ function Get-PackagePreflight([string]$Target) {
         if ($exists -and $entry.kind -eq 'asset' -and $oldHash -ne $entry.sha256) {
             throw "A different mod already uses this path: $($entry.target). Move that mod out first."
         }
-        if ($exists -and $entry.target -eq 'scripts/inventory_icons.py' -and $oldHash -ne $entry.sha256) {
-            throw 'An existing inventory_icons.py would be overwritten. Keep it separately first.'
+        if ($exists -and $entry.target -in @('scripts/inventory_icons.py','scripts/ui4k_assets.py') -and $oldHash -ne $entry.sha256) {
+            throw "An existing $([IO.Path]::GetFileName($entry.target)) would be overwritten. Keep it separately first."
         }
         $plan+=@{target=$entry.target;source=$entry.source;existed=[bool]$exists;beforeHash=$oldHash;installedHash=$entry.sha256}
         $parent=[IO.Path]::GetDirectoryName($path)
@@ -160,9 +200,20 @@ function Get-PackagePreflight([string]$Target) {
             $parent=[IO.Path]::GetDirectoryName($parent)
         }
     }
+    $folders=@()
+    if ($manifest.PSObject.Properties['directories']) {$folders=@($manifest.directories)}
+    foreach ($folder in $folders) {
+        $parent=Get-SafePath $Target $folder
+        while ($parent.Length -gt $Target.TrimEnd('\').Length -and -not (Test-Path -LiteralPath $parent)) {
+            $relative=$parent.Substring($Target.TrimEnd('\').Length+1)
+            if ($relative -notin $directories) {$directories+=@($relative)}
+            $parent=[IO.Path]::GetDirectoryName($parent)
+        }
+    }
     $state=@{version=$manifest.version;files=$plan;createdDirectories=$directories;
              configExisted=[bool](Test-Path -LiteralPath $configPath);configBefore=$before;configInstalledHash=''}
-    return @{mode='Install';target=$Target;stateRoot=$stateRoot;state=$state;plan=$plan;configPath=$configPath;after=$after}
+    return @{mode='Install';target=$Target;stateRoot=$stateRoot;state=$state;plan=$plan;configPath=$configPath;after=$after;
+             folders=$folders}
 }
 function Get-TargetReadiness([string]$Target) {
     try {
@@ -200,19 +251,21 @@ function Install-Package([string]$Target) {
             [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
             [IO.File]::Copy((Get-SafePath $script:PackageRoot $entry.source),$path,$true)
         }
+        foreach ($folder in @($preflight.folders)) {[IO.Directory]::CreateDirectory((Get-SafePath $Target $folder)) | Out-Null}
         Write-JsonFile $configPath $after
         $state.configInstalledHash=Get-Digest $configPath
         Write-JsonFile (Join-Path $stateRoot 'state.json') $state
         Test-Installation $Target | Out-Null
     } catch {
         $reason=$_
+        Remove-GeneratedFiles $Target (Read-JsonFile (Join-Path $script:PackageRoot 'manifest.json'))
         Restore-Files $Target $stateRoot $state
         if ($state.configExisted) {[IO.File]::Copy((Join-Path $stateRoot 'mods.json.before'),$configPath,$true)}
         elseif (Test-Path -LiteralPath $configPath) {[IO.File]::Delete($configPath)}
         Clear-State $stateRoot
         throw $reason
     }
-    return 'Installed. Launch bbport normally. For the tested 4K text result, select 3840 x 2160 and restart the game.'
+    return 'Installed. Launch bbport normally. Above 1080p (2560 x 1440, 3840 x 2160) text is drawn at the output size.'
 }
 function Uninstall-Package([string]$Target) {
     Assert-GameClosed
@@ -228,13 +281,14 @@ function Uninstall-Package([string]$Target) {
     $configPath=Get-SafePath $Target 'mods.json'
     $unchanged=(Test-Path -LiteralPath $configPath) -and (Get-Digest $configPath) -eq $state.configInstalledHash
     $current=Read-ModConfig $configPath
+    Remove-GeneratedFiles $Target (Read-JsonFile (Join-Path $script:PackageRoot 'manifest.json'))
     Restore-Files $Target $stateRoot $state
     if ($unchanged) {
         if ($state.configExisted) {[IO.File]::Copy((Join-Path $stateRoot 'mods.json.before'),$configPath,$true)}
         else {[IO.File]::Delete($configPath)}
     } else {
         # Preserve later unrelated mod choices; restore this package's original entries.
-        $managed=@($script:OwnedMods)+@('Xbox 360 Prompts (Elden Ring)')
+        $managed=@($script:OwnedMods)
         foreach ($key in @('enabled','disabled','order')) {
             $current.$key=@($current.$key | Where-Object {$_ -notin $managed})
             $original=@($state.configBefore.$key)

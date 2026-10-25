@@ -1,65 +1,79 @@
-"""Maintainer tool. Build the release payload from a known working bbport installation.
-End users do not need Python. All copies are ordinary files, never links.
+"""Maintainer tool. Build the release payload and manifest.
+
+Inputs (ordinary files, never links):
+  --assets   the v1.0.0 release's payload/mods folder (UI 4K movies and the Inventory Icons 4K
+             archive, which holds every upscaled texture: UI 2x, inventory icons 4x, prompts 2x)
+  --keyboard the PCBButtons common.tpf.dcx the upscaled prompts were made from (its prompt
+             images are fingerprinted, so the launch helper keeps the upscaled ones for it)
+  --probe    the stock bin/bb-probe.exe of the supported bbport release
+
+The integration scripts are made from upstream/ by tools/make_integration.py beforehand.
+End users do not need Python.
 """
 from pathlib import Path
-import argparse,hashlib,json,shutil,difflib
+import argparse, hashlib, json, shutil, sys
 
-ROOT=Path(__file__).resolve().parents[1]
-def digest(data):return hashlib.sha256(data).hexdigest()
-def textdigest(path):return digest(path.read_text(encoding='utf-8-sig').replace('\r\n','\n').encode())
-def one(source,old,new):
-    assert source.count(old)==1,repr(old)
-    return source.replace(old,new)
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'integration'))
+import ui4k_assets  # noqa: E402
+
+VERSION = '1.1.0'
+BBPORT = 'Jgamrot Launcher 2.1 / qml-launcher-preview-23'
+MOD = 'mods/UI 4K'
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def textdigest(path):
+    return digest(path.read_text(encoding='utf-8-sig').replace('\r\n', '\n').encode())
+
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--bbport',type=Path,required=True);args=ap.parse_args()
-    port=args.bbport.resolve()
-    run=(ROOT/'upstream/run.py').read_text(encoding='utf-8')
-    patches=(ROOT/'upstream/patches.py').read_text(encoding='utf-8')
-    hook="""        # Bloodborne UI 4K: coordinates for the selected 4x inventory atlases.
-        from inventory_icons import boot_for_mods
-        boot_image = boot_for_mods(out, game, Path(env.get('BB_MODS_DIR', data / 'mods')),
-                                  Path(env.get('BB_MODS_CONFIG', data / 'mods.json')),
-                                  env.get('BB_MODS_ENABLED', '1'))
-"""
-    run=one(run,"        run_script('link_modules.py', game, '--out', out)\n",
-                "        run_script('link_modules.py', game, '--out', out)\n"+hook)
-    run=one(run,"str(out / 'boot-linked.bin')",'str(boot_image)')
-    run=one(run,"            else:\n                env.pop('BB_UI_RES', None)\n        else:\n",
-                "            else:\n                # Rasterize text for the physical 4K viewport; keep the logical stage.\n                if (ow, oh) == (3840, 2160):\n                    env['BB_UI_RES'] = movie_output\n                else:\n                    env.pop('BB_UI_RES', None)\n        else:\n")
-    patches=one(patches,'    elif out[0]*9 != out[1]*16: ui=out\n',
-                '    # Bloodborne UI 4K: physical 4K movie viewport, original logical stage.\n    elif out == (3840,2160): ui=out\n    elif out[0]*9 != out[1]*16: ui=out\n')
-    integration=ROOT/'integration';integration.mkdir(exist_ok=True)
-    (integration/'run.py').write_text(run,encoding='utf-8',newline='\n')
-    (integration/'patches.py').write_text(patches,encoding='utf-8',newline='\n')
-    module=(port/'scripts/inventory_icons.py').read_text(encoding='utf-8')
-    (integration/'inventory_icons.py').write_text('# SPDX-License-Identifier: GPL-2.0-or-later\n'+module,encoding='utf-8',newline='\n')
-    for name,data in [('run.py',run),('patches.py',patches)]:
-        original=(ROOT/'upstream'/name).read_text(encoding='utf-8')
-        patch=''.join(difflib.unified_diff(original.splitlines(True),data.splitlines(True),fromfile='upstream/'+name,tofile='integration/'+name))
-        (integration/(name+'.diff')).write_text(patch,encoding='utf-8')
-        compile(data,name,'exec')
-    files=[]
-    for name,target in [('run.py','run.py'),('patches.py','scripts/patches.py'),('inventory_icons.py','scripts/inventory_icons.py')]:
-        src=integration/name
-        files.append(dict(source=src.relative_to(ROOT).as_posix(),target=target,kind='script',sha256=digest(src.read_bytes())))
-    for name in ('Keyboard Prompts (PCBButtons)','UI 4K','Inventory Icons 4K'):
-        folder=port/'mods'/name/'dvdroot_ps4'
-        if not folder.is_dir():folder=port/'mods'/name
-        assert folder.is_dir(),folder
-        for source in sorted(folder.rglob('*')):
-            if not source.is_file():continue
-            assert not source.is_symlink()
-            if source.suffix.casefold() in ('.txt','.json','.png','.md'):continue
-            relative=Path('mods')/name/'dvdroot_ps4'/source.relative_to(folder)
-            dest=ROOT/'payload'/relative;dest.parent.mkdir(parents=True,exist_ok=True)
-            shutil.copyfile(source,dest)
-            files.append(dict(source=dest.relative_to(ROOT).as_posix(),target=relative.as_posix(),kind='asset',sha256=digest(dest.read_bytes())))
-    manifest=dict(id='bloodborne-ui4k',version='1.0.0',bbport='Jgamrot Launcher 1.9.7 / qml-launcher-preview-21',
-                  game='Bloodborne GOTY CUSA03173 / 1.09',inputs=[
-        dict(path='run.py',text=True,sha256=textdigest(ROOT/'upstream/run.py')),
-        dict(path='scripts/patches.py',text=True,sha256=textdigest(ROOT/'upstream/patches.py')),
-        dict(path='bin/bb-probe.exe',text=False,sha256='9870a55dc94f33b83056b8477953e92bfde2276b5b131c9e02788a411f5c88e5')],files=files)
-    (ROOT/'manifest.json').write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
-    print('Prepared',len(files),'files;',round(sum((ROOT/f['source']).stat().st_size for f in files)/1048576,2),'MiB')
-if __name__=='__main__':main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--assets', type=Path, required=True)
+    ap.add_argument('--keyboard', type=Path, required=True)
+    ap.add_argument('--probe', type=Path, required=True)
+    args = ap.parse_args()
+    payload = ROOT / 'payload'
+    if payload.exists():
+        shutil.rmtree(payload)
+    data = payload / MOD / ui4k_assets.DATA_FOLDER
+    (data / 'movies').mkdir(parents=True)
+
+    archive = args.assets / 'Inventory Icons 4K/dvdroot_ps4/menu/common.tpf.dcx'
+    shutil.copyfile(archive, data / 'common.tpf.dcx')
+    _header, tpf = ui4k_assets.read_archive(archive)
+    icons = [t for t in tpf['textures'] if t['name'].startswith('MENU_Icon_')]
+    assert len(icons) == 20 and all(t['w'] >= 4096 for t in icons if t['h'] >= 1024), 'not the 4x icon archive'
+    for movie in sorted((args.assets / 'UI 4K/dvdroot_ps4/menu').glob('*.gfx')):
+        shutil.copyfile(movie, data / 'movies' / movie.name)
+    _header, keyboard = ui4k_assets.read_archive(args.keyboard)
+    (data / 'prompts.json').write_text(json.dumps({'keyboard_source': ui4k_assets.prompt_digest(keyboard)}, indent=1) + '\n',
+                                       encoding='utf-8')
+
+    files = []
+    for name, target in [('run.py', 'run.py'), ('patches.py', 'scripts/patches.py'),
+                         ('ui4k_assets.py', 'scripts/ui4k_assets.py'), ('inventory_icons.py', 'scripts/inventory_icons.py')]:
+        src = ROOT / 'integration' / name
+        compile(src.read_text(encoding='utf-8'), str(src), 'exec')
+        files.append(dict(source=src.relative_to(ROOT).as_posix(), target=target, kind='script', sha256=digest(src.read_bytes())))
+    for source in sorted(p for p in (payload / MOD).rglob('*') if p.is_file()):
+        relative = source.relative_to(payload).as_posix()
+        files.append(dict(source=source.relative_to(ROOT).as_posix(), target=relative, kind='asset',
+                          sha256=digest(source.read_bytes())))
+    manifest = dict(id='bloodborne-ui4k', version=VERSION, bbport=BBPORT, game='Bloodborne GOTY CUSA03173 / 1.09',
+                    inputs=[dict(path='run.py', text=True, sha256=textdigest(ROOT / 'upstream/run.py')),
+                            dict(path='scripts/patches.py', text=True, sha256=textdigest(ROOT / 'upstream/patches.py')),
+                            dict(path='bin/bb-probe.exe', text=False, sha256=digest(args.probe.read_bytes()))],
+                    # Made at launch by scripts/ui4k_assets.py; the folder must exist for the port to list the mod.
+                    directories=[f'{MOD}/dvdroot_ps4/menu'],
+                    generated=dict(root=f'{MOD}/dvdroot_ps4', stamp=f'{MOD}/{ui4k_assets.DATA_FOLDER}/{ui4k_assets.STAMP}'),
+                    files=files)
+    (ROOT / 'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+    print('Prepared', len(files), 'files;', round(sum((ROOT / f['source']).stat().st_size for f in files) / 1048576, 2), 'MiB')
+
+
+if __name__ == '__main__':
+    main()

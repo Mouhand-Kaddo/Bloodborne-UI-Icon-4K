@@ -17,9 +17,8 @@ import subprocess
 import sys
 
 PORT = Path(__file__).resolve().parent
-# The Xbox button prompts mod the package ships (packaging/windows/mods).
-XBOX_PROMPTS = 'Xbox 360 Prompts (Elden Ring)'
-# The keyboard key images the port ships, off until chosen (launcher KEYBOARD_PROMPTS, PCBButtons).
+# The keyboard key images (PCBButtons from Nexus Mods), as the launcher adds them to the mods
+# folder (launcher KEYBOARD_PROMPTS).
 KEYBOARD_PROMPTS = 'Keyboard Prompts (PCBButtons)'
 
 
@@ -88,6 +87,31 @@ def hunters_dream(env, user_dir):
 def fail(message):
     print(message, file=sys.stderr)
     sys.exit(1)
+
+
+# The scripts a start runs or imports. A copy of the port with some left out (seen in repacks
+# from other sites, GitHub issue #118) stopped with "No module named 'game_check'"; it now says
+# what is missing and where the whole package is. (After Awaken's port 0.9.30: "a game folder
+# missing its core files now gets a clear message instead of crashing".)
+START_SCRIPTS = ('game_check.py', 'enhancements.py', 'atlas.py', 'patches.py', 'aspect_ratio.py', 'mods.py',
+                 'language_files.py', 'hud_layout.py', 'content_profile.py', 'link_libc.py', 'link_modules.py',
+                 'prepare.py', 'shader_code.py', 'quiet_output.py')
+RELEASES = 'https://github.com/Jgamrot/bloodborne_pc/releases/latest'
+# Text languages (PS4 system language ids) the game shows without Unlock Game Region: English
+# (US) and Russian (GitHub issue #58: Russian text without it).
+REGION_LANGUAGES = ('', '1', '8')
+
+
+def missing_port_files(port=None):
+    port = port or PORT
+    return [f'scripts\\{name}' for name in START_SCRIPTS if not (port / 'scripts' / name).is_file()]
+
+
+def explain_missing_port_files(missing):
+    more = f' and {len(missing) - 1} more' if len(missing) > 1 else ''
+    return (f'This copy of the port is incomplete: {missing[0]}{more} missing from {PORT}. '
+            f'Download the port again from {RELEASES} and unpack the whole zip; copies from '
+            f'other sites often leave files out.')
 
 
 def wait_for(pid):
@@ -181,6 +205,84 @@ def shader_prebuild(game, out, env):
         env['BB_SHADER_CATALOG'] = str(catalog)
 
 
+# Low-VRAM profile (from a player's 4 GB mod; ethan, Supermedo 44a6433; measured on an RTX 3050 Ti
+# Laptop, i5-11300H, Central Yharnam, 1080p output with an upscaler): the texture cache's own marks
+# had it evict and upload again ~30 textures a second with 2.7 GB in use, and the live path's
+# native-size game targets cost ~700 MiB more than the startup patch (2.8 GB at 640x360 against
+# 2.1 GB at 960x540). Discrete GPUs up to LOW_VRAM_MB; BB_LOW_VRAM=1 forces the profile, 0 turns
+# it off.
+LOW_VRAM_MB = 4608
+# Left to the desktop, browsers and the driver.
+VRAM_RESERVE_MB = 600
+
+
+def low_vram_mb(env, caps):
+    """The card's memory in MiB when the low-VRAM profile applies, else 0. caps is
+    bb-gpu-capabilities, which picks the GPU the game uses (BB_GPU_ID included)."""
+    setting = env.get('BB_LOW_VRAM', '')
+    if setting == '0':
+        return 0
+    vram, discrete = 0, False
+    try:
+        result = subprocess.run([str(caps), '--vram'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, text=True, timeout=20, creationflags=no_console())
+        size, kind = result.stdout.split()
+        vram, discrete = int(size), kind == '1'
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    if setting == '1':
+        return vram or 4096
+    # Integrated GPUs follow the driver's budget already (texture_cache.cpp).
+    return vram if discrete and 0 < vram <= LOW_VRAM_MB else 0
+
+
+def physical_cores():
+    """CPU cores, not threads (GetLogicalProcessorInformation); os.cpu_count() when unknown."""
+    try:
+        from ctypes import wintypes
+        size = wintypes.DWORD(0)
+        ctypes.windll.kernel32.GetLogicalProcessorInformation(None, ctypes.byref(size))
+        buffer = ctypes.create_string_buffer(size.value)
+        if not ctypes.windll.kernel32.GetLogicalProcessorInformation(buffer, ctypes.byref(size)):
+            raise OSError
+        # SYSTEM_LOGICAL_PROCESSOR_INFORMATION: ULONG_PTR mask, then the relationship (0 = a core).
+        entry = ctypes.sizeof(ctypes.c_void_p) * 2 + 16
+        cores = sum(1 for offset in range(0, size.value - entry + 1, entry)
+                    if int.from_bytes(buffer.raw[offset + ctypes.sizeof(ctypes.c_void_p):][:4], 'little') == 0)
+        if cores:
+            return cores
+    except (AttributeError, OSError):
+        pass
+    return os.cpu_count() or 8
+
+
+def start_companions(data, env, game_pid):
+    """Companions (tools/bloodborne_rpc: Discord Rich Presence): programs in <data>/companions/<name>/
+    that run beside the game, each started only when companions.json lists its folder name under
+    "enabled" (none by default). companion.json names the program; it gets the game's process id
+    in BB_GAME_PID. They end with the game."""
+    started = []
+    try:
+        enabled = set(json.loads((data / 'companions.json').read_text(encoding='utf-8')).get('enabled', []))
+    except (OSError, ValueError):
+        return started
+    companions = data / 'companions'
+    for folder in sorted(companions.iterdir() if companions.is_dir() else ()):
+        if not folder.is_dir() or folder.name not in enabled:
+            continue
+        try:
+            spec = json.loads((folder / 'companion.json').read_text(encoding='utf-8'))
+            exe = folder / spec.get('exe', '')
+            if not exe.is_file() or exe.suffix.lower() != '.exe':
+                continue
+            print(f'Companion: {spec.get("name", folder.name)}')
+            started.append(subprocess.Popen([str(exe)], cwd=folder, env={**env, 'BB_GAME_PID': str(game_pid)},
+                                            stdin=subprocess.DEVNULL, creationflags=no_console()))
+        except (OSError, ValueError) as error:
+            print(f'Companion {folder.name} not started: {error}', file=sys.stderr)
+    return started
+
+
 def main():
     args = sys.argv[1:]
     if len(args) >= 2 and args[0] == '--after':
@@ -188,6 +290,8 @@ def main():
         args = args[2:]
     # As run.sh: relative paths (BB_GAME_DIR, BB_DATA_DIR, fsr4_shaders/) are from the port.
     os.chdir(PORT)
+    if missing := missing_port_files():
+        fail(explain_missing_port_files(missing))
     env = os.environ
     data = Path(env.get('BB_DATA_DIR', PORT))
     out = data / 'out'
@@ -264,19 +368,21 @@ def main():
                    optional=True)
         if (hud_layer / 'dvdroot_ps4').is_dir():
             generated.append(str(hud_layer))
-    # The Xbox button prompts the package ships (packaging/windows/mods in a source checkout).
-    bundled = [folder for folder in (PORT / 'mods' / XBOX_PROMPTS, PORT / 'packaging/windows/mods' / XBOX_PROMPTS)
-               if folder.is_dir()][:1]
-    bundled_off = [folder for folder in (PORT / 'bundled' / KEYBOARD_PROMPTS,
-                                         PORT / 'packaging/windows/bundled' / KEYBOARD_PROMPTS)
-                   if folder.is_dir()][:1]
+    # Text and voice languages (scripts/language_files.py): Brazilian Portuguese text from the
+    # game's porbr files, and the voice language apart from the text's (BB_VOICE_LANGUAGE).
+    # BB_LANGUAGE_FILES=0: the game's own choice. (After Berleis, Supermedo PR #20.)
+    language_layer = Path(out) / 'language'
+    voice = env.get('BB_VOICE_LANGUAGE') or ini_value(config, 'voice_language') or ''
+    if env.get('BB_LANGUAGE_FILES') != '0':
+        run_script('language_files.py', game, '--out', language_layer, '--language', env.get('BB_LANGUAGE', ''),
+                   '--voice', voice, optional=True)
+        if (language_layer / 'dvdroot_ps4').is_dir():
+            generated.append(str(language_layer))
     game = Path(run_script('mods.py', game, '--out', out,
                            '--mods-dir', env.get('BB_MODS_DIR', data / 'mods'),
                            '--config', env.get('BB_MODS_CONFIG', data / 'mods.json'),
                            '--enabled', env.get('BB_MODS_ENABLED', '1'),
                            *(arg for folder in generated for arg in ('--generated', folder)),
-                           *(arg for folder in bundled for arg in ('--bundled', folder)),
-                           *(arg for folder in bundled_off for arg in ('--bundled-off', folder)),
                            capture=True).strip())
     mod_view = game if game.resolve() != original_game else None
     # Keyboard prompts: whether the key images are among the mods in use, as the launcher's
@@ -380,10 +486,40 @@ def main():
             env.setdefault('BB_DMEM_MB', '9152')
             print(f'Output {scaled_output}: scene {scaled_render}, direct memory {env["BB_DMEM_MB"]} MiB '
                   '(live_resolution=1: live changes)')
+        vram = low_vram_mb(env, probe.parent / 'bb-gpu-capabilities.exe')
+        if vram:
+            env.setdefault('BB_GC_BUDGET_MB', str(max(2048, vram - VRAM_RESERVE_MB)))
+            notes = [f'texture budget {env["BB_GC_BUDGET_MB"]} MiB']
+            # At 1080p output the live path keeps the game's targets native; here they shrink too.
+            wants_live = (env.get('BB_LIVE_RES') or ini_value(config, 'live_resolution')) == '1'
+            if (patched and not scaled_output and not env.get('BB_RENDER_RES') and not wants_live
+                    and ini_value(config, 'upscaler') != 'taa'):
+                size = run_script('patches.py', '--print-preset-size', '--settings', config, capture=True).strip()
+                if size:
+                    env.update(BB_RENDER_RES=size, BB_AUTO_RENDER_RES='1')
+                    notes.append(f'scene {size} patched at start (live_resolution=1: live changes)')
+                    # On this path most prepared draws go unused (145494 of 182272), and on four
+                    # cores the workers take time from the game: 53.0 FPS with 4 workers, 55.1
+                    # with 2, 56.8 without (minimum 45.3, 48.4, 53.3; i5-11300H, 4 cores, 8
+                    # threads). On 8 cores the workers win: 197 FPS without them, 234 with 4.
+                    if physical_cores() <= 4 and 'BB_PREP_WORKERS' not in env:
+                        env['BB_PREP_WORKERS'] = '0'
+                        notes.append('no draw-preparation workers')
+            print(f'Low-VRAM profile ({vram} MiB card): {", ".join(notes)}; BB_LOW_VRAM=0 turns it off')
+        # The game's graphics heaps at PC sizes need the larger pool (patches.py HEAP_PATCH;
+        # pc_heaps=0 / BB_PC_HEAPS=0: the PS4's heaps, the larger pool only above 1080p).
+        if patched and (env.get('BB_PC_HEAPS') or ini_value(config, 'pc_heaps') or '1') != '0':
+            env.setdefault('BB_DMEM_MB', '9152')
+        # Frame limiter slots on the planned grid (driver.cpp, Supermedo d646b1d); off by default.
+        if not env.get('BB_FRAME_CAP_GRID') and ini_value(config, 'frame_cap_grid') == '1':
+            env['BB_FRAME_CAP_GRID'] = '1'
         extra = env.get('BB_PATCHES', '')
-        # Chinese text (BB_LANGUAGE 10, 11) shows only with the game's region unlocked
-        # (k1m0206, Supermedo PR #91; its server lookups stay on Europe).
-        if env.get('BB_LANGUAGE') in ('10', '11') and 'Unlock Game Region' not in extra:
+        # The game shows only its region's text languages and falls back to English for the
+        # others: Chinese (BB_LANGUAGE 10, 11), and Spanish and Japanese too (GitHub issues #126,
+        # #133; Spanish checked in game). Every language but English and Russian (shown without
+        # it) gets the region unlocked (k1m0206, Supermedo PR #91; its server lookups stay on
+        # Europe).
+        if env.get('BB_LANGUAGE', '1') not in REGION_LANGUAGES and 'Unlock Game Region' not in extra:
             extra = ';'.join(filter(None, (extra, 'Unlock Game Region')))
         # Offline, the title screen goes straight to the main menu (PLAY ONLINE would only fail
         # there); online play and co-op keep the dialog. BB_SKIP_NETWORK_CHOICE=0 shows it offline
@@ -396,7 +532,12 @@ def main():
                    '--output-res', env.get('BB_OUTPUT_RES', ''),
                    '--patches-dir', env.get('BB_PATCHES_DIR', data / 'patches'),
                    '--patches-config', env.get('BB_PATCHES_CONFIG', data / 'patches.json'))
-        if not env.get('BB_VBLANK_HZ'):
+        if fps in ('120', '144'):
+            # 90 FPS++ scaled to the rate (patches.py SCALED_FPS): vblank and frame limit at the
+            # rate, as Awakenchan/BloodBorneButPc sets them; another cap would change its timing.
+            env['BB_VBLANK_HZ'] = env.get('BB_VBLANK_HZ') or fps
+            env['BB_FPS_LIMIT'] = fps
+        elif not env.get('BB_VBLANK_HZ'):
             env['BB_VBLANK_HZ'] = {'uncap': '0', '90': '90'}.get(fps, '60')
 
         # The in-game restart starts this script again once this process is gone.
@@ -423,7 +564,16 @@ def main():
                    '--user', str(user_dir),
                    '--timeout', env.get('BB_TIMEOUT', '0'), *args]
         # No stdin: an inherited pipe (shells such as Git Bash) cost the game its console output.
-        return subprocess.run(command, stdin=subprocess.DEVNULL, creationflags=no_console()).returncode
+        game_proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, creationflags=no_console())
+        started = []
+        try:
+            started = start_companions(data, env, game_proc.pid)
+            return game_proc.wait()
+        finally:
+            for proc in started:
+                proc.terminate()
+            if game_proc.poll() is None:
+                game_proc.terminate()
     finally:
         if mod_view:
             # Read-only game files leave read-only links (mods.remove_overlay clears them).
@@ -435,6 +585,10 @@ def main():
 
 
 if __name__ == '__main__':
+    # The launcher reading this output may close before the game starts.
+    sys.path.insert(0, str(PORT / 'scripts'))
+    import quiet_output
+    quiet_output.guard()
     try:
         sys.exit(main())
     except KeyboardInterrupt:

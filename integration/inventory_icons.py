@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Inventory Icons 4K: native UV correction confirmed in gameplay on bbport preview-21.
-Original icon geometry is retained. The hook applies only when this asset mod is selected.
+"""Inventory Icons 4K: native UV correction, first confirmed in gameplay on bbport preview-21
+(1.9.7), ported to preview-23 (2.1). Original icon geometry is retained. The hook applies only
+when UI 4K's interface archive is the one the game loads.
 """
 from pathlib import Path
 import re,struct,json,hashlib
@@ -131,19 +132,17 @@ def build(source,dest):
     return build_image(source,dest,sites=sites,heights=(4096,2048,1024,512))
 
 
-MOD_NAME='Inventory Icons 4K'
-ASSET_SHA256='9ecbbe4fc022fa43f6f34deafb3e3f0ba2844482c3dca8f33e7aaa7865ae2b88'
-
-def boot_for_mods(out,game,library,config,enabled):
+def boot_for_archive(out,game,archive_sha256):
+    """The boot image to start: with the UV correction when the merged game view `game` loads
+    UI 4K's interface archive (SHA-256 `archive_sha256`, ui4k_assets.prepare), else the port's."""
     original=Path(out)/'boot-linked.bin'
-    if enabled!='1':return original
-    from mods import selected
-    if MOD_NAME not in selected(library,config):return original
+    if not archive_sha256:return original
     common=Path(game)/'dvdroot_ps4/menu/common.tpf.dcx'
-    if not common.is_file() or hashlib.sha256(common.read_bytes()).hexdigest()!=ASSET_SHA256:
-        raise RuntimeError('Inventory Icons 4K: common.tpf.dcx was replaced by another mod or changed. '
-                           'Place Inventory Icons 4K after UI 4K, or disable Inventory Icons 4K.')
+    if not common.is_file() or hashlib.sha256(common.read_bytes()).hexdigest()!=archive_sha256:
+        print('UI 4K: another mod after UI 4K replaces common.tpf.dcx; the 4x inventory icons and '
+              'their correction are not used. Put UI 4K last in the mod order.')
+        return original
     target=Path(out)/'boot-inventory-icons.bin'
     build(original,target)
-    print('Inventory Icons 4K: 20 atlases; native UV correction enabled')
+    print('UI 4K: 20 inventory atlases at 4x; native UV correction enabled')
     return target

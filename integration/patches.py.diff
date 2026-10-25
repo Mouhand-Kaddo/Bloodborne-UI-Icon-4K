@@ -1,11 +1,12 @@
 --- upstream/patches.py
 +++ integration/patches.py
-@@ -539,6 +539,8 @@
-     ui=OUTPUT_SIZE
+@@ -845,6 +845,9 @@
      out=output_size({'output_res': a.output_res}) if a.output_res else OUTPUT_SIZE
      if ultrawide(out): ui=hud_canvas(out)
-+    # Bloodborne UI 4K: physical 4K movie viewport, original logical stage.
-+    elif out == (3840,2160): ui=out
      elif out[0]*9 != out[1]*16: ui=out
++    # Bloodborne UI 4K: 16:9 outputs above 1080p get the physical movie viewport, so text is
++    # drawn at the output's size (the logical stage stays 1920x1080). run.py sets BB_UI4K_TEXT.
++    elif out[1] > OUTPUT_SIZE[1] and os.environ.get('BB_UI4K_TEXT') == '1': ui=out
      if size:
          writes+=resolution_writes(a.xml,size,a.app_version,segments,ui)
+         if ultrawide(out):

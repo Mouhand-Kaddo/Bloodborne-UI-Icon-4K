@@ -19,7 +19,11 @@ def main():
         shutil.copyfile(ROOT/'upstream/patches.py',target/'scripts/patches.py')
         shutil.copyfile(args.probe,target/'bin/bb-probe.exe')
         (target/'Bloodborne.exe').write_bytes(b'MZ fixture marker; never executed')
-        (target/'mods.json').write_text(json.dumps({'enabled':['Other Mod'],'disabled':['Xbox 360 Prompts (Elden Ring)'],
+        # Prompt mods as the launcher adds them; both must stay as the player chose.
+        for name in ('Xbox 360 Prompts (Elden Ring)','Keyboard Prompts (PCBButtons)'):
+            (target/'mods'/name/'menu').mkdir(parents=True)
+            (target/'mods'/name/'menu/common.tpf.dcx').write_bytes(name.encode())
+        (target/'mods.json').write_text(json.dumps({'enabled':['Other Mod'],'disabled':['Keyboard Prompts (PCBButtons)'],
                                                   'order':['Other Mod'],'custom_setting':42}),encoding='utf-8')
         baseline=hashes(target)
         def action(name,okay=True):
@@ -40,9 +44,20 @@ def main():
         action('Install');action('Verify');action('Install')
         assert readiness()['ready'] and readiness()['mode']=='Installed'
         config=json.loads((target/'mods.json').read_text())
-        assert config['order'][-3:]==['Keyboard Prompts (PCBButtons)','UI 4K','Inventory Icons 4K']
-        action('Uninstall');assert hashes(target)==baseline
-        results.append('clean install, verify, repeat install, exact uninstall restore; spaces and Cyrillic paths')
+        assert config['order']==['Other Mod','Keyboard Prompts (PCBButtons)','Xbox 360 Prompts (Elden Ring)','UI 4K'],config
+        assert config['disabled']==['Keyboard Prompts (PCBButtons)'],config
+        assert (target/'mods/UI 4K/dvdroot_ps4/menu').is_dir()
+        # Files the launch helper makes, listed in its stamp, go with the package.
+        made=target/'mods/UI 4K/dvdroot_ps4/menu'
+        (made/'common.tpf.dcx').write_bytes(b'made at launch');(made/'title.gfx').write_bytes(b'made at launch')
+        (made/'title.gfx.ui4k-tmp').write_bytes(b'interrupted')
+        (target/'mods/UI 4K/ui4k/generated.json').write_text(json.dumps({'identity':'test','files':{
+            'dvdroot_ps4/menu/common.tpf.dcx':{},'dvdroot_ps4/menu/title.gfx':{}}}),encoding='utf-8')
+        action('Verify')
+        action('Uninstall');assert hashes(target)==baseline,set(hashes(target))^set(baseline)
+        assert not (target/'mods/UI 4K').exists()
+        results.append('clean install, verify, repeat install, exact uninstall restore incl. files made at launch; '
+                       'UI 4K ordered last, prompt mods kept as chosen; spaces and Cyrillic paths')
         # A modified upstream script must be rejected without changing any target files.
         original=(target/'run.py').read_bytes();(target/'run.py').write_bytes(original+b'\n# unknown edit\n')
         before=hashes(target);action('Install',False);assert hashes(target)==before
@@ -64,8 +79,8 @@ def main():
         (target/'mods.json').write_text(json.dumps(config),encoding='utf-8')
         action('Uninstall');restored=json.loads((target/'mods.json').read_text())
         assert 'Later Mod' in restored['enabled'] and 'Other Mod' in restored['enabled'] and restored['custom_setting']==42
-        assert 'Inventory Icons 4K' not in restored['enabled']
-        (target/'mods.json').write_text(json.dumps({'enabled':['Other Mod'],'disabled':['Xbox 360 Prompts (Elden Ring)'],
+        assert 'UI 4K' not in restored['enabled'] and 'UI 4K' not in restored['order']
+        (target/'mods.json').write_text(json.dumps({'enabled':['Other Mod'],'disabled':['Keyboard Prompts (PCBButtons)'],
                                                   'order':['Other Mod'],'custom_setting':42}),encoding='utf-8')
         assert hashes(target)==baseline
         results.append('uninstall protects user edits and preserves later unrelated mod choices')
@@ -92,6 +107,11 @@ def main():
         clean_windows=hashes(target)
         action('Install');action('Uninstall');assert hashes(target)==clean_windows
         results.append('UTF-8 BOM, Windows CRLF, missing mods.json; exact byte restoration')
+        # A 1.0.0 (bbport 1.9.7) folder left in place is reported, not merged.
+        (target/'mods/Inventory Icons 4K').mkdir();before=hashes(target)
+        action('Install',False);assert hashes(target)==before and not readiness()['ready']
+        (target/'mods/Inventory Icons 4K').rmdir()
+        results.append('leftover 1.0.0 mod folder rejected before mutation')
         source=(ROOT/'installer/setup.ps1').read_text(encoding='utf-8')
         assert 'MessageBox' not in source and '$verify' not in source
         results.append('automatic folder preflight: valid, missing, wrong, modified, corrupt payload and already-installed states; no validation residue or popup code')

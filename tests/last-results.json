@@ -3,13 +3,16 @@
   "runtime": "Windows PowerShell 5.1",
   "game_started": false,
   "checks": [
-    "clean install, verify, repeat install, exact uninstall restore; spaces and Cyrillic paths",
+    "clean install, verify, repeat install, exact uninstall restore incl. files made at launch; UI 4K ordered last, prompt mods kept as chosen; spaces and Cyrillic paths",
     "unsupported installation rejected before mutation",
     "corrupted payload rejected before mutation",
     "uninstall protects user edits and preserves later unrelated mod choices",
     "post-copy failure restores exact original files and configuration",
     "manifest path traversal rejected",
     "UTF-8 BOM, Windows CRLF, missing mods.json; exact byte restoration",
+    "leftover 1.0.0 mod folder rejected before mutation",
     "automatic folder preflight: valid, missing, wrong, modified, corrupt payload and already-installed states; no validation residue or popup code"
-  ]
+  ],
+  "bbport": "Jgamrot Launcher 2.1 / qml-launcher-preview-23",
+  "note": "Run while the game was open, so the installer's game-running check was switched off in the test copy only."
 }

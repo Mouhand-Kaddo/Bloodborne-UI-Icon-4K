@@ -1,43 +1,30 @@
-# Publish on GitHub / Публикация на GitHub
+# Rebuild and publish
 
 ## Repository
 
-Create a repository and upload this folder's **source files**. `.gitignore` excludes `payload/`, `build/` and `dist/`. Keep the installer source, integration source and diffs, upstream source copies, GPL license, credits, both READMEs and `docs/images/`.
+The repository holds the source: installer, integration and launch helper, upstream copies, diffs, tests, docs. `.gitignore` excludes `payload/`, `build/` and `dist/`: the textures (about 88 MiB) are attached to each GitHub Release as the full ZIP, never committed.
 
-The binary texture payload is intentionally kept outside Git: the largest archive is about 86.5 MiB. The source checkout alone is not a complete end-user installer. Do not upload the entire bbport or game installation, local configuration, user saves, caches, account tokens or logs.
+## Rebuild for a bbport release
 
-Create a GitHub Release for tag `v1.0.0` and attach:
-
-- `Bloodborne-UI-4K-v1.0.0.zip`
-- `SHA256SUMS.txt`
-
-The supplied ZIP already includes `payload/` and is ready to extract and run. GitHub's automatically generated **Source code** archives do not include those textures.
-
-## Rebuild from a working installation
-
-Maintainer requirements: Python 3.10+; Windows PowerShell 5.1; the known supported bbport release. Pillow is needed only to regenerate comparison sheets.
+Requirements: Python 3.10+ and Windows PowerShell 5.1.
 
 ```powershell
-python tools/prepare_payload.py --bbport "D:\Games\bbport-windows"
-python tests/test_installer.py --probe "D:\Games\bbport-windows\bin\bb-probe.exe"
+# 1. Put the new release's clean run.py and scripts/patches.py in upstream/, then:
+python tools/make_integration.py
+# 2. Textures and reference movies from the 1.0.0 release ZIP's payload/mods folder:
+python tools/prepare_payload.py --assets "<1.0.0 ZIP>\Bloodborne-UI-4K\payload\mods" `
+    --keyboard "<bbport>\mods\Keyboard Prompts (PCBButtons)\menu\common.tpf.dcx" --probe "<bbport>\bin\bb-probe.exe"
+python tests/test_installer.py --probe "<bbport>\bin\bb-probe.exe"
 python tools/build_release.py
 ```
 
-`prepare_payload.py` reads the known working mod resources and native-UV helper, and creates ordinary copies. It regenerates minimal UI-only patched scripts from `upstream/`. It does not copy the personal camera fixes, game executable, saves, driver profiles or runtime caches. Review every integration diff and keep third-party attribution.
+`make_integration.py` stops if an edit no longer matches the upstream script exactly. Then read the new script, port the edit by hand, and test in game. Do not make the installer accept unknown hashes to silence a version error.
 
-After changing payloads, rebuild `manifest.json` and rerun the tests. When updating to a different bbport version, first verify its source and runtime, port the changes explicitly and perform a real gameplay test. Do not make the installer accept unknown hashes to silence a version error.
+Before publishing a new bbport version, start the game with it: `user\last_run.log` must show `UI 4K: 20 inventory atlases at 4x; native UV correction enabled` and `Patches: ... UI <output size>`, and the inventory icons must sit in their frames.
 
 ## Release checklist
 
-- Install and uninstall tests passed; `tests/last-results.json` is current.
-- README compatibility and limitations match the actual build.
-- Texture previews are labelled as texture comparisons.
-- No personal paths, credentials, executable game dumps or save data are included.
-- Full installer ZIP opens, all manifest files match, and `SHA256SUMS.txt` matches the final ZIP.
-- Publish only after reviewing included third-party artwork permissions and preserving credits.
-
-## По-русски
-
-В репозиторий загружаются исходники этой папки с учётом `.gitignore`. Папки `payload`, `build` и `dist` коммитить не нужно. Полный готовый ZIP и `SHA256SUMS.txt` прикрепляются к релизу `v1.0.0`. Архивы **Source code**, которые GitHub создаёт автоматически, не заменяют установочный ZIP.
-
-Для пересборки выполни три команды выше, подставив путь к совместимой рабочей установке. Перед публикацией другой версии проверь отпечатки исходников, изменения скриптов и работу в игре. Проверка файлов установщика сама по себе не подтверждает графический результат на новом порте.
+- `tests/last-results.json` passed and is current; README compatibility matches the build.
+- The full ZIP opens, every manifest file matches, and `SHA256SUMS.txt` matches both ZIPs.
+- No personal paths, credentials, game executables, saves or logs are included.
+- Attach `Bloodborne-UI-4K-v<version>.zip` and `SHA256SUMS.txt` to the release.
