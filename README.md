@@ -36,7 +36,7 @@ These are **texture comparisons, not gameplay screenshots**: the same region at 
 
 ## Install
 
-1. Download **`Bloodborne-UI-4K-v1.1.0.zip`** from the [latest release](https://github.com/Mouhand-Kaddo/Bloodborne-UI-Icon-4K/releases/latest) and extract it. GitHub's automatic *Source code* ZIP does not contain the textures.
+1. Download **`Bloodborne-UI-4K-v1.1.1.zip`** from the [latest release](https://github.com/Mouhand-Kaddo/Bloodborne-UI-Icon-4K/releases/latest) and extract it. GitHub's automatic *Source code* ZIP does not contain the textures.
 2. Close the game **and the launcher**.
 3. Double-click **`Setup.cmd`** and choose English or Russian.
 4. Browse to the **bbport folder containing `Bloodborne.exe`** (not the game's `CUSA03173` folder). When it turns green, click **Install**.
@@ -68,7 +68,7 @@ The installer checks the port's original scripts and the stock `bb-probe.exe` (S
 
 ## What changed from 1.0.0
 
-| | 1.0.0 (aoho60372) | 1.1.0 (this fork) |
+| | 1.0.0 (aoho60372) | 1.1.1 (this fork) |
 |---|---|---|
 | bbport | 1.9.7 | 2.1 |
 | Sharper text | 3840×2160 only | Every 16:9 output above 1080p, while UI 4K is enabled |
@@ -76,10 +76,7 @@ The installer checks the port's original scripts and the stock `bb-probe.exe` (S
 | Menu movies | Fixed copies, which replace the port's PC menu movies | Rebuilt at start from the port's own versions |
 | Mod folders | `Keyboard Prompts (PCBButtons)`, `UI 4K`, `Inventory Icons 4K` | `UI 4K` only (keyboard prompts come from the launcher's own download) |
 | Another mod replacing the interface archive | The game does not start | A warning; that mod's archive is used without the icon correction |
-
-## Known limitation
-
-The pictures in the HUD's **Blood Vial and Quicksilver Bullet slots** (top left) are not part of the menu textures: with every menu texture, item picture and icon sheet replaced by solid colours in a test, they still showed. They stay at the game's resolution, now drawn with smooth filtering instead of nearest-pixel. Where the game loads them from is not known yet.
+| HUD Blood Vial / Quicksilver Bullet pictures | Game resolution | AI-upscaled 2× from the game’s own art |
 
 ## FAQ
 

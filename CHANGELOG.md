@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- **HUD Blood Vial and Quicksilver Bullet pictures upscaled.** They sit on `MENU_Common_00091` next to the button prompts. 1.1.0 copied that whole sheet from the prompt mod, so they stayed at the game's resolution. Now only the buttons' rectangle is taken from the prompt mod; a PlayStation (1x) source is enlarged 2x. The two pictures are AI-upscaled from the game's own sheet (`tools/hud_sprites.py`, Real-ESRGAN x4plus).
+- Files made at start are rebuilt once after updating (`ui4k-assets 4`).
+
 ## 1.1.0 (fork for bbport 2.1)
 
 - **bbport 2.1** (`qml-launcher-preview-23`): the integration is remade from the 2.1 scripts (`tools/make_integration.py`), and the installer checks 2.1's scripts and `bb-probe.exe`.
@@ -11,7 +16,6 @@
 - **Smooth image filtering:** the menu movies' bitmap fills are switched from non-smoothed (nearest-pixel) to smoothed (bilinear) when they are made at start, so upscaled art is not stair-stepped at 1440p/4K. This is what made the HUD's Blood Echoes and Insight symbols look unchanged.
 - **In-game test runner** (`tests/ingame`): starts the game at normal rights on a copy of the saves, plays a scripted scenario, checks the log, takes HDR-correct screenshots and closes the game; `-WithoutMod` gives the before/after comparison.
 - Installer tests updated (files made at launch, mod order, leftover 1.0.0 folder).
-- Known limitation: the HUD's Blood Vial and Quicksilver Bullet slot pictures do not come from any menu texture and stay at the game's resolution.
 
 ## 1.0.0 (aoho60372)
 

@@ -6,6 +6,9 @@ Inputs (ordinary files, never links):
   --keyboard the PCBButtons common.tpf.dcx the upscaled prompts were made from (its prompt
              images are fingerprinted, so the launch helper keeps the upscaled ones for it)
   --probe    the stock bin/bb-probe.exe of the supported bbport release
+  --game, --esrgan, --ffmpeg  the game folder, realesrgan-ncnn-vulkan.exe and ffmpeg.exe: the HUD's
+             Blood Vial and Quicksilver Bullet pictures are upscaled into the archive
+             (tools/hud_sprites.py)
 
 The integration scripts are made from upstream/ by tools/make_integration.py beforehand.
 End users do not need Python.
@@ -17,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'integration'))
 import ui4k_assets  # noqa: E402
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 BBPORT = 'Jgamrot Launcher 2.1 / qml-launcher-preview-23'
 MOD = 'mods/UI 4K'
 
@@ -35,6 +38,9 @@ def main():
     ap.add_argument('--assets', type=Path, required=True)
     ap.add_argument('--keyboard', type=Path, required=True)
     ap.add_argument('--probe', type=Path, required=True)
+    ap.add_argument('--game', type=Path, required=True)
+    ap.add_argument('--esrgan', type=Path, required=True)
+    ap.add_argument('--ffmpeg', type=Path, required=True)
     args = ap.parse_args()
     payload = ROOT / 'payload'
     if payload.exists():
@@ -47,6 +53,9 @@ def main():
     _header, tpf = ui4k_assets.read_archive(archive)
     icons = [t for t in tpf['textures'] if t['name'].startswith('MENU_Icon_')]
     assert len(icons) == 20 and all(t['w'] >= 4096 for t in icons if t['h'] >= 1024), 'not the 4x icon archive'
+    sys.path.insert(0, str(ROOT / 'tools'))
+    import hud_sprites
+    print('HUD vial/bullet blocks upscaled:', hud_sprites.apply(data / 'common.tpf.dcx', args.game, args.esrgan, args.ffmpeg))
     for movie in sorted((args.assets / 'UI 4K/dvdroot_ps4/menu').glob('*.gfx')):
         shutil.copyfile(movie, data / 'movies' / movie.name)
     _header, keyboard = ui4k_assets.read_archive(args.keyboard)

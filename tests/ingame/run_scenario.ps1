@@ -18,6 +18,8 @@ param(
     [Parameter(Mandatory)][string]$FFmpeg,
     [switch]$WithoutMod,
     [switch]$RealSaves,
+    # Extra environment for this run only, e.g. a capture layer: -ExtraEnv @{VK_INSTANCE_LAYERS='...'}
+    [hashtable]$ExtraEnv = @{},
     # HDR displays: frames are captured as 16-bit float (scRGB) and scaled by this before the sRGB
     # conversion, so bright HUD white is not clipped (an 8-bit capture loses its antialiased edges).
     # 0 captures plain 8-bit.
@@ -43,7 +45,8 @@ $steps = Get-Content $Scenario -Raw | ConvertFrom-Json
 $logs = @((Join-Path $Port 'user\last_run.log'))
 $keys = @{ enter=@(0x0D,0x1C,0); escape=@(0x1B,0x01,0); backspace=@(0x08,0x0E,0); up=@(0x26,0x48,1); down=@(0x28,0x50,1)
            left=@(0x25,0x4B,1); right=@(0x27,0x4D,1); e=@(0x45,0x12,0); q=@(0x51,0x10,0); g=@(0x47,0x22,0)
-           w=@(0x57,0x11,0); a=@(0x41,0x1E,0); s=@(0x53,0x1F,0); d=@(0x44,0x20,0); space=@(0x20,0x39,0); tab=@(0x09,0x0F,0) }
+           w=@(0x57,0x11,0); a=@(0x41,0x1E,0); s=@(0x53,0x1F,0); d=@(0x44,0x20,0); space=@(0x20,0x39,0); tab=@(0x09,0x0F,0)
+           f12=@(0x7B,0x58,0) }
 $report = [ordered]@{ scenario = (Split-Path $Scenario -Leaf); withoutMod = [bool]$WithoutMod; started = (Get-Date).ToString('s');
                       steps = @(); checks = @(); passed = $true }
 
@@ -120,6 +123,7 @@ if (-not $RealSaves) {
     $env:BB_USER_DIR = $userCopy
     $logs = @((Join-Path $userCopy 'last_run.log')) + $logs
 } else { Remove-Item Env:BB_USER_DIR -ErrorAction SilentlyContinue }
+foreach ($k in $ExtraEnv.Keys) { Set-Item "Env:$k" $ExtraEnv[$k] }
 $launched = (Get-Date).AddSeconds(-2)
 Start-Process -FilePath (Join-Path $Port 'Play Bloodborne.exe') -WorkingDirectory $Port | Out-Null
 try {
@@ -156,6 +160,7 @@ try {
         $report.modsJsonRestored = $true
     }
     Remove-Item Env:__COMPAT_LAYER, Env:BB_MODS_CONFIG, Env:BB_USER_DIR -ErrorAction SilentlyContinue
+    foreach ($k in $ExtraEnv.Keys) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
     $report.finished = (Get-Date).ToString('s')
     [IO.File]::WriteAllText((Join-Path $Out 'report.json'), ($report | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
 }

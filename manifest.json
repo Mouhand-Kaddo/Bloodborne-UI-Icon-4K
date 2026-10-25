@@ -1,6 +1,6 @@
 {
   "id": "bloodborne-ui4k",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "bbport": "Jgamrot Launcher 2.1 / qml-launcher-preview-23",
   "game": "Bloodborne GOTY CUSA03173 / 1.09",
   "inputs": [
@@ -44,7 +44,7 @@
       "source": "integration/ui4k_assets.py",
       "target": "scripts/ui4k_assets.py",
       "kind": "script",
-      "sha256": "30c9c2f574bfee3ffa08a062ea8a140eea872b090b92f2f021ca50e03f6cec46"
+      "sha256": "88ec9a803cc1ecbc07d9494e08f2234cb6b232d84e97466a024c63f951028a76"
     },
     {
       "source": "integration/inventory_icons.py",
@@ -56,7 +56,7 @@
       "source": "payload/mods/UI 4K/ui4k/common.tpf.dcx",
       "target": "mods/UI 4K/ui4k/common.tpf.dcx",
       "kind": "asset",
-      "sha256": "9ecbbe4fc022fa43f6f34deafb3e3f0ba2844482c3dca8f33e7aaa7865ae2b88"
+      "sha256": "19efae1e9666e7ea1cc9f26e468d4149aec1590a20c803c0cbf4ebfc1f251a3e"
     },
     {
       "source": "payload/mods/UI 4K/ui4k/movies/autogenalter.gfx",

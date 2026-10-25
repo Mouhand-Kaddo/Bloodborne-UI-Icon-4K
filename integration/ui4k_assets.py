@@ -24,7 +24,7 @@ MOD_NAME = 'UI 4K'
 DATA_FOLDER = 'ui4k'            # inside the mod folder; the loader ignores files outside dvdroot_ps4
 ARCHIVE = 'dvdroot_ps4/menu/common.tpf.dcx'
 STAMP = 'generated.json'
-IDENTITY = 'ui4k-assets 3'
+IDENTITY = 'ui4k-assets 4'
 
 
 # ---------------------------------------------------------------------------------------------
@@ -108,29 +108,243 @@ def read_archive(path):
     return header, tpf_read(data)
 
 
-# The button prompt images (KG_*, the key guide) and the atlas with the larger prompt pictures.
+# The button prompt images: the key guide (KG_*), replaced whole, and the HUD sheet
+# MENU_Common_00091, which has the O / X / L3 buttons beside HUD art of its own (bars, the Blood
+# Vial and Quicksilver Bullet pictures, status icons). Only the buttons' rectangle is taken from
+# a prompt mod; the rest of that sheet stays UI 4K's. Rectangles are fractions of the sheet's size
+# (x0, y0, x1, y1), from the original 1024x512 sheet: x 656-752, y 112-160.
 PROMPT_TEXTURES = ('KG_Cancel', 'KG_L1', 'KG_L2', 'KG_L3', 'KG_LS', 'KG_L_D', 'KG_L_LR', 'KG_L_U',
                    'KG_L_UD', 'KG_L_UDLR', 'KG_OK', 'KG_R1', 'KG_R2', 'KG_R3', 'KG_RS', 'KG_R_L',
-                   'KG_R_U', 'KG_Start', 'KG_TP_L', 'KG_TP_R', 'MENU_Common_00091')
+                   'KG_R_U', 'KG_Start', 'KG_TP_L', 'KG_TP_R')
+PROMPT_REGIONS = {'MENU_Common_00091': [(656 / 1024, 112 / 512, 752 / 1024, 160 / 512)]}
+# What identifies a prompt set (prompts.json keyboard_source was made over these).
+DIGEST_TEXTURES = PROMPT_TEXTURES + ('MENU_Common_00091',)
 
 
 def prompt_digest(tpf):
     by_name = {t['name']: t for t in tpf['textures']}
     digest = hashlib.sha256()
-    for name in PROMPT_TEXTURES:
+    for name in DIGEST_TEXTURES:
         t = by_name[name]
         digest.update(name.encode() + struct.pack('<HHi', t['w'], t['h'], t['dxgi']) + t['data'])
     return digest.hexdigest()
 
 
+# PS4 tiling: blocks in 8x8-block tiles, Morton order inside a tile, tiles row-major.
+MORTON = []
+for _i in range(64):
+    _x = _y = 0
+    for _b in range(3):
+        _x |= ((_i >> (2 * _b)) & 1) << _b
+        _y |= ((_i >> (2 * _b + 1)) & 1) << _b
+    MORTON.append((_x, _y))
+
+
+def deswizzle(data, wb, hb, bpb):
+    out = bytearray(wb * hb * bpb)
+    src = 0
+    for ty in range((hb + 7) // 8):
+        for tx in range((wb + 7) // 8):
+            for mx, my in MORTON:
+                x, y = tx * 8 + mx, ty * 8 + my
+                if x < wb and y < hb:
+                    d = (y * wb + x) * bpb
+                    out[d:d + bpb] = data[src:src + bpb]
+                src += bpb
+    return out
+
+
+def swizzle(linear, wb, hb, bpb):
+    out = bytearray(((wb + 7) // 8) * ((hb + 7) // 8) * 64 * bpb)
+    dst = 0
+    for ty in range((hb + 7) // 8):
+        for tx in range((wb + 7) // 8):
+            for mx, my in MORTON:
+                x, y = tx * 8 + mx, ty * 8 + my
+                if x < wb and y < hb:
+                    s = (y * wb + x) * bpb
+                    out[dst:dst + bpb] = linear[s:s + bpb]
+                dst += bpb
+    return bytes(out)
+
+
+# BC7: a full decoder (any mode), and a mode-6 encoder for the few blocks made here.
+_W = {2: [0, 21, 43, 64], 3: [0, 9, 18, 27, 37, 46, 55, 64], 4: [0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64]}
+_P2 = [0xcccc, 0x8888, 0xeeee, 0xecc8, 0xc880, 0xfeec, 0xfec8, 0xec80, 0xc800, 0xffec, 0xfe80, 0xe800, 0xffe8, 0xff00, 0xfff0, 0xf000,
+       0xf710, 0x008e, 0x7100, 0x08ce, 0x008c, 0x7310, 0x3100, 0x8cce, 0x088c, 0x3110, 0x6666, 0x366c, 0x17e8, 0x0ff0, 0x718e, 0x399c,
+       0xaaaa, 0xf0f0, 0x5a5a, 0x33cc, 0x3c3c, 0x55aa, 0x9696, 0xa55a, 0x73ce, 0x13c8, 0x324c, 0x3bdc, 0x6996, 0xc33c, 0x9966, 0x0660,
+       0x0272, 0x04e4, 0x4e40, 0x2720, 0xc936, 0x936c, 0x39c6, 0x639c, 0x9336, 0x9cc6, 0x817e, 0xe718, 0xccf0, 0x0fcc, 0x7744, 0xee22]
+_P3 = ['0011001122112221', '0001001122112221', '0000200122112211', '0222002200110111', '0000000011221122', '0011001100220022',
+       '0022002211111111', '0011001122112211', '0000000011112222', '0000111111112222', '0000111122222222', '0012001200120012',
+       '0112011201120112', '0122012201220122', '0011011211221222', '0011200122002220', '0001001101121122', '0111001120012200',
+       '0000112211221122', '0022002200221111', '0111011102220222', '0001000122212221', '0000001101220122', '0000110022102210',
+       '0122012200110000', '0012001211221122', '0110122112210110', '0000011012211221', '0022110211020022', '0110011020022222',
+       '0011012201220011', '0000200022112221', '0000000111211122', '0222002200120011', '0011001200220222', '0120012001200120',
+       '0000111122220000', '0120120120120120', '0120201212010120', '0011220011220011', '0011112222000011', '0101010122222222',
+       '0000000021212121', '0022112200221122', '0022001100220011', '0220122102201221', '0101222222220101', '0000212121212121',
+       '0101010101012222', '0222011102220111', '0002111200021112', '0000211221122112', '0222011101110222', '0002111211120002',
+       '0110011001102222', '0000000021122112', '0110011022222222', '0022001100110022', '0022112211220022', '0000000000002112',
+       '0002000100020001', '0222122202221222', '0101222222222222', '0111201122012220']
+_A2 = [15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 2, 8, 2, 2, 8, 8, 15, 2, 8, 2, 2, 8, 8, 2, 2,
+       15, 15, 6, 8, 2, 8, 15, 15, 2, 8, 2, 2, 2, 15, 15, 6, 6, 2, 6, 8, 15, 15, 2, 2, 15, 15, 15, 15, 15, 2, 2, 15]
+_A3A = [3, 3, 15, 15, 8, 3, 15, 15, 8, 8, 6, 6, 6, 5, 3, 3, 3, 3, 8, 15, 3, 3, 6, 10, 5, 8, 8, 6, 8, 5, 15, 15,
+        8, 15, 3, 5, 6, 10, 8, 15, 15, 3, 15, 5, 15, 15, 15, 15, 3, 15, 5, 5, 5, 8, 5, 10, 5, 10, 8, 13, 15, 12, 3, 3]
+_A3B = [15, 8, 8, 3, 15, 15, 3, 8, 15, 15, 15, 15, 15, 15, 15, 8, 15, 8, 15, 3, 15, 8, 15, 8, 3, 15, 6, 10, 15, 15, 10, 8,
+        15, 3, 15, 10, 10, 8, 9, 10, 6, 15, 8, 15, 3, 6, 6, 8, 15, 3, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 3, 15, 15, 8]
+# subsets, partition bits, rotation bits, index-select bits, colour bits, alpha bits, endpoint p-bits,
+# shared p-bits, index bits, second index bits
+_MODES = {0: (3, 4, 0, 0, 4, 0, 1, 0, 3, 0), 1: (2, 6, 0, 0, 6, 0, 0, 1, 3, 0), 2: (3, 6, 0, 0, 5, 0, 0, 0, 2, 0),
+          3: (2, 6, 0, 0, 7, 0, 1, 0, 2, 0), 4: (1, 0, 2, 1, 5, 6, 0, 0, 2, 3), 5: (1, 0, 2, 0, 7, 8, 0, 0, 2, 2),
+          6: (1, 0, 0, 0, 7, 7, 1, 0, 4, 0), 7: (2, 6, 0, 0, 5, 5, 1, 0, 2, 0)}
+
+
+def bc7_decode_block(block):
+    """16 RGBA pixels of one BC7 block."""
+    v = int.from_bytes(block, 'little'); pos = 0
+
+    def bits(n):
+        nonlocal pos
+        r = (v >> pos) & ((1 << n) - 1); pos += n
+        return r
+    mode = 0
+    while mode < 8 and not bits(1):
+        mode += 1
+    if mode == 8:
+        return [(0, 0, 0, 0)] * 16
+    ns, pb, rb, isb, cb, ab, epb, spb, ib, ib2 = _MODES[mode]
+    part = bits(pb); rot = bits(rb); isel = bits(isb); ne = ns * 2
+    col = [[bits(cb) for _ in range(ne)] for _ in range(3)]
+    alp = [bits(ab) for _ in range(ne)] if ab else None
+    if epb:
+        p = [bits(1) for _ in range(ne)]
+    elif spb:
+        p = [bits(1) for _ in range(ns)]; p = [p[i // 2] for i in range(ne)]
+    else:
+        p = None
+
+    def expand(x, n, e):
+        if p is not None:
+            x = (x << 1) | p[e]; n += 1
+        return (x << (8 - n)) | (x >> (2 * n - 8)) if n < 8 else x
+    eps = [[expand(col[c][e], cb, e) for c in range(3)] + [expand(alp[e], ab, e) if alp else 255] for e in range(ne)]
+    if ns == 1:
+        sub = [0] * 16; anchors = [0]
+    elif ns == 2:
+        sub = [(_P2[part] >> i) & 1 for i in range(16)]; anchors = [0, _A2[part]]
+    else:
+        sub = [int(c) for c in _P3[part]]; anchors = [0, _A3A[part], _A3B[part]]
+    idx = [bits(ib - (1 if i in anchors and anchors.index(i) == sub[i] else 0)) for i in range(16)]
+    idx2 = [bits(ib2 - (1 if i == 0 else 0)) for i in range(16)] if ib2 else None
+    out = []
+    for i in range(16):
+        e0, e1 = eps[2 * sub[i]], eps[2 * sub[i] + 1]
+        if idx2:
+            ci, ai = (idx2[i], idx[i]) if isel else (idx[i], idx2[i])
+            wc = _W[ib2 if isel else ib][ci]; wa = _W[ib if isel else ib2][ai]
+        else:
+            wc = wa = _W[ib][idx[i]]
+        px = [((64 - wc) * e0[k] + wc * e1[k] + 32) >> 6 for k in range(3)] + [((64 - wa) * e0[3] + wa * e1[3] + 32) >> 6]
+        if rot:
+            px[rot - 1], px[3] = px[3], px[rot - 1]
+        out.append(tuple(px))
+    return out
+
+
+def bc7_encode_block(px):
+    """One BC7 mode-6 block (one subset, 7-bit RGBA endpoints with p-bits, 4-bit indices) for 16
+    RGBA pixels: endpoints at the colour bounding box, each pixel projected onto that line."""
+    def endpoint(vals):
+        best = None
+        for p in (0, 1):
+            qs = [max(0, min(127, (v - p + 1) // 2)) for v in vals]
+            err = sum(abs(((q << 1) | p) - v) for q, v in zip(qs, vals))
+            if best is None or err < best[0]:
+                best = (err, qs, p)
+        return best[1], best[2]
+    q0, p0 = endpoint([min(c[k] for c in px) for k in range(4)])
+    q1, p1 = endpoint([max(c[k] for c in px) for k in range(4)])
+    e0 = [(q << 1) | p0 for q in q0]; e1 = [(q << 1) | p1 for q in q1]
+    d = [b - a for a, b in zip(e0, e1)]; dd = sum(x * x for x in d) or 1
+    weights = _W[4]
+    idx = []
+    for c in px:
+        w = max(0.0, min(1.0, sum((c[k] - e0[k]) * d[k] for k in range(4)) / dd)) * 64
+        idx.append(min(range(16), key=lambda i: abs(weights[i] - w)))
+    if idx[0] >= 8:  # the anchor index has 3 bits: swap the endpoints
+        q0, q1, p0, p1 = q1, q0, p1, p0
+        idx = [15 - i for i in idx]
+    v = 1 << 6; pos = 7
+    for k in range(4):
+        v |= q0[k] << pos; pos += 7
+        v |= q1[k] << pos; pos += 7
+    v |= p0 << pos; v |= p1 << (pos + 1); pos += 2
+    for i, x in enumerate(idx):
+        v |= x << pos; pos += 3 if i == 0 else 4
+    return v.to_bytes(16, 'little')
+
+
+def paste_region(base, source, rect):
+    """`base` texture data with the fractional `rect` taken from `source` (both BC7). The same
+    size copies the blocks; a source half the size (the game's own 1x sheet) is enlarged 2x with
+    bilinear filtering and encoded. Returns the new data, or None when the sizes do not fit."""
+    if base['dxgi'] != 98 or source['dxgi'] != 98:
+        return None
+    bw, bh = base['w'] // 4, base['h'] // 4
+    x0, y0, x1, y1 = (round(rect[0] * bw), round(rect[1] * bh), round(rect[2] * bw), round(rect[3] * bh))
+    lin = deswizzle(base['data'], bw, bh, 16)
+    if (source['w'], source['h']) == (base['w'], base['h']):
+        src = deswizzle(source['data'], bw, bh, 16)
+        for y in range(y0, y1):
+            o = (y * bw + x0) * 16
+            lin[o:(y * bw + x1) * 16] = src[o:(y * bw + x1) * 16]
+    elif (source['w'] * 2, source['h'] * 2) == (base['w'], base['h']):
+        sw, sh = source['w'] // 4, source['h'] // 4
+        src = deswizzle(source['data'], sw, sh, 16)
+        # Source pixels of the rectangle (plus a 1-pixel border for the filter).
+        px0, py0, px1, py1 = x0 * 2 - 1, y0 * 2 - 1, x1 * 2 + 1, y1 * 2 + 1
+        rows = {}
+        for by in range(max(0, py0 // 4), min(sh, (py1 + 3) // 4)):
+            for bx in range(max(0, px0 // 4), min(sw, (px1 + 3) // 4)):
+                o = (by * sw + bx) * 16
+                for i, c in enumerate(bc7_decode_block(bytes(src[o:o + 16]))):
+                    rows[(bx * 4 + i % 4, by * 4 + i // 4)] = c
+
+        xs = [k[0] for k in rows]; ys = [k[1] for k in rows]
+        lox, hix, loy, hiy = min(xs), max(xs), min(ys), max(ys)
+
+        def get(x, y):
+            return rows[(min(hix, max(lox, x)), min(hiy, max(loy, y)))]
+
+        def sample(fx, fy):  # bilinear in source pixels
+            ix, iy = int(fx // 1), int(fy // 1); tx, ty = fx - ix, fy - iy
+            a, b, c, d = get(ix, iy), get(ix + 1, iy), get(ix, iy + 1), get(ix + 1, iy + 1)
+            return tuple(round(a[k] * (1 - tx) * (1 - ty) + b[k] * tx * (1 - ty) + c[k] * (1 - tx) * ty + d[k] * tx * ty)
+                         for k in range(4))
+        for by in range(y0, y1):
+            for bx in range(x0, x1):
+                px = [sample((bx * 4 + i % 4 + 0.5) / 2 - 0.5, (by * 4 + i // 4 + 0.5) / 2 - 0.5) for i in range(16)]
+                o = (by * bw + bx) * 16
+                lin[o:o + 16] = bc7_encode_block(px)
+    else:
+        return None
+    return swizzle(lin, bw, bh, 16)
+
+
 def with_prompts(base, source):
-    """`base` (the 4K archive) with the prompt images of `source`. Each keeps its own size: the
-    menu movies give the key guide 64x64 and the atlas 2048x1024, and the game samples a smaller
-    image over the same area."""
+    """`base` (the 4K archive) with the prompt images of `source`: the key guide textures whole
+    (each keeps its own size: the movies give the key guide 64x64 and the game samples a smaller
+    image over the same area), and only the buttons' rectangle of the HUD sheet."""
     by_name = {t['name']: t for t in source['textures']}
     out = dict(base, textures=[])
     for t in base['textures']:
-        out['textures'].append(dict(by_name[t['name']]) if t['name'] in PROMPT_TEXTURES else t)
+        if t['name'] in PROMPT_TEXTURES:
+            t = dict(by_name[t['name']])
+        elif t['name'] in PROMPT_REGIONS and t['name'] in by_name:
+            data = t['data']
+            for rect in PROMPT_REGIONS[t['name']]:
+                data = paste_region(dict(t, data=data), by_name[t['name']], rect) or data
+            t = dict(t, data=data)
+        out['textures'].append(t)
     return out
 
 
